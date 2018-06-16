@@ -29,10 +29,10 @@ shinyUI(
                   p("Use the menu items on the left to get the results of the different analyses")
                 ),
                 fluidRow(
-                  p("the data is refreshed every 2 seconds")
+                  p("the data is refreshed every 10 minutes")
                 ),
                 fluidRow(
-                  box(plotOutput("plot_refresh"))
+                  textOutput("text_refresh1")
                 )
         ),
         
@@ -49,7 +49,11 @@ shinyUI(
                 ),
                 fluidRow(
                   p("To support any model, all three Bayes Factor values need to pass the threshold")
+                ),
+                fluidRow(
+                  textOutput("text_refresh2")
                 )
+                
         ),
         
         
@@ -63,16 +67,22 @@ shinyUI(
                   ),
                 fluidRow(
                   p("To support any model, all three Bayes Factor values need to pass the threshold")
+                ),
+                fluidRow(
+                  textOutput("text_refresh3")
                 )
         ),
         
         tabItem(tabName = "robust_analysis",
                 
                 fluidRow(
-                  h1("Result of the Bayesian Robustness Parameter Estimation Robustness Analysis")
+                  h1("Result of the Bayesian Parameter Estimation Robustness Analysis")
                 ),
                 fluidRow(
                   box(plotOutput("plot2"))
+                ),
+                fluidRow(
+                  textOutput("text_refresh4")
                 )
         ),
         
@@ -83,6 +93,9 @@ shinyUI(
                 ),
                 fluidRow(
                   box(plotOutput("plot3"))
+                ),
+                fluidRow(
+                  textOutput("text_refresh5")
                 )
 
         )
