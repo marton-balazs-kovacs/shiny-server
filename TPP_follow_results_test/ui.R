@@ -1,5 +1,7 @@
 library(shiny)
 library(shinydashboard)
+library(knitr)
+library(rmarkdown)
 
 
 shinyUI(
@@ -11,7 +13,8 @@ shinyUI(
         menuItem("Results summary" , tabName = "res_summary"),
         menuSubItem("Main Confirmatory Analysis", tabName = "conf_analysis"),
         menuSubItem("Robustness Analysis", tabName = "robust_analysis"),
-        menuSubItem("Exploratory analysis", tabName = "explor_analysis")
+        menuSubItem("Exploratory analysis", tabName = "explor_analysis"),
+        menuItem("Preprint", tabName = "rmarkdown_manuscript")
       )
     ),
     
@@ -98,6 +101,12 @@ shinyUI(
                   textOutput("text_refresh5")
                 )
 
+        ),
+        
+        tabItem(tabName = "rmarkdown_manuscript",
+                
+                uiOutput('markdown')
+                
         )
       )
       
