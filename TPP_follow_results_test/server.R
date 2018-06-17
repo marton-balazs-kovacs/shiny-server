@@ -1553,7 +1553,6 @@ shinyServer(function(input, output){
   
   
   output$markdown <- renderUI({
-    invalidateLater(600000)
     HTML(markdown::markdownToHTML(knit('TPP_Manuscript_test.Rmd', quiet = TRUE)))
   })
   
