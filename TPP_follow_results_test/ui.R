@@ -92,6 +92,9 @@ shinyUI(
         tabItem(tabName = "explor_analysis",
                 
                 fluidRow(
+                  p("Loading the contents of this page may take a few seconds. Please, wait.")
+                ),
+                fluidRow(
                   h1("Histogram overlay of the expected and observed distribution of successful guess rate")
                 ),
                 fluidRow(
@@ -105,6 +108,9 @@ shinyUI(
         
         tabItem(tabName = "rmarkdown_manuscript",
                 
+                fluidRow(
+                  p("Loading the contents of this page may take a few seconds. Please, wait.")
+                ),
                 uiOutput('markdown')
                 
         )
