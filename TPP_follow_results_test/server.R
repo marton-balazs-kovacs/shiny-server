@@ -1,5 +1,7 @@
 library(shiny)
 library(shinydashboard)
+library(knitr)
+library(rmarkdown)
 
 
 
@@ -1531,10 +1533,32 @@ shinyServer(function(input, output){
     
     
     # earth mover's distance
-    emd2d(success_rates_theoretical_prop,success_rates_empirical_prop)
+    emd = emd2d(success_rates_theoretical_prop,success_rates_empirical_prop)
     
     
     print(figure_1)
   })
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  output$markdown <- renderUI({
+    invalidateLater(600000)
+    HTML(markdown::markdownToHTML(knit('TPP_Manuscript_test.Rmd', quiet = TRUE)))
+  })
+  
+  
+  
+  
   
 })
