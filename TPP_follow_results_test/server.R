@@ -18,6 +18,34 @@ library(emdist) # to calcluate earth mover's distance (EMD)
 
 ######################################################################
 #                                                                    #
+#                            Page refresh time                       #
+#                                                                    #
+######################################################################
+
+refresh_time = 2000
+crucial_test_refresh_time = 60000
+
+######################################################################
+#                                                                    #
+#                             Source data                            #
+#                                                                    #
+######################################################################
+
+#set where data will be read from
+source_data = "test"
+
+data_link_pilot = "https://raw.githubusercontent.com/gy0p4k/transparent-psi-results/master/results.csv"
+data_link_test = "https://raw.githubusercontent.com/gy0p4k/transparent-psi-results/master/test_results_from_2018-06-02T14%3A01%3A41.608Z.csv"
+
+data_link = if(source_data == "pilot"){
+  data_link_pilot
+} else if(source_data == "test") {
+  data_link_test
+} else {NA}
+
+
+######################################################################
+#                                                                    #
 #                            Functions                               #
 #                                                                    #
 ######################################################################
@@ -126,24 +154,16 @@ minimum_effect_threshold_Bayes_Par_Est = 0.006
 # expect that 95% of the probability mass would be within the ROPE to accept a hypothesis
 Inference_threshold_robustness_Bayes_Par_Est = 0.05 
 
+ROPE = M0_prob+minimum_effect_threshold_Bayes_Par_Est
 
 
+######################################################################
+#                                                                    #
+#                            Reactive values                         #
+#                                                                    #
+######################################################################
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+# This is data that will be constantly refreshed, and values computed from this data
 
 
 
@@ -151,68 +171,27 @@ Inference_threshold_robustness_Bayes_Par_Est = 0.05
 shinyServer(function(input, output){
 
   
+  stopping_info <- reactiveValues()
   
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  output$text_refresh1 <- renderText({
-    invalidateLater(600000)
     
-    paste("The data on this page was last refreshed at:  ", Sys.time(), "  (time zone:  ", Sys.timezone(), " ).", sep = "")
+  values <- reactiveValues()
 
-  })
-  
-  output$text_refresh2 <- renderText({
-    invalidateLater(600000)
-    
-    paste("The data on this page was last refreshed at:  ", Sys.time(), "  (time zone:  ", Sys.timezone(), " ).", sep = "")
-    
-  })
-  
 
-  output$text_refresh3 <- renderText({
-    invalidateLater(600000)
+  
+  
+  
+  
+ 
+  
+  
+  
+  
+  observe({
     
-    paste("The data on this page was last refreshed at:  ", Sys.time(), "  (time zone:  ", Sys.timezone(), " ).", sep = "")
+    invalidateLater(refresh_time)
     
-  })
-  
-  
-  output$text_refresh4 <- renderText({
-    invalidateLater(600000)
     
-    paste("The data on this page was last refreshed at:  ", Sys.time(), "  (time zone:  ", Sys.timezone(), " ).", sep = "")
-    
-  })
-  
-  
-  output$text_refresh5 <- renderText({
-    invalidateLater(600000)
-    
-    paste("The data on this page was last refreshed at:  ", Sys.time(), "  (time zone:  ", Sys.timezone(), " ).", sep = "")
-    
-  })
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  output$text_summary <- renderText({
+    df <- as.numeric(substr(as.numeric(Sys.time()), 15, 16))/10  # This does not update after 1 sec
     
     
     ######################################################################
@@ -222,16 +201,23 @@ shinyServer(function(input, output){
     ######################################################################
     
     # get up to date date from github
-    pilot_data_pre <- read.csv("https://raw.githubusercontent.com/gy0p4k/transparent-psi-results/master/results.csv")
+    pilot_data_pre <- read.csv(data_link)
     
     # only read pilot sessions
     # pilot sessions are marked with session_type = "pilot" and they were all collected in the lab with the laboratory_ID_code = "lab_ELTE_01"
     lab_ID <- "lab_ELTE_01"
-    pilot_data <- pilot_data_pre[pilot_data_pre[,"session_type"] == "pilot" & pilot_data_pre[,"laboratory_ID_code"] == "lab_ELTE_01", ]
+    
+    if(source_data == "pilot"){
+      pilot_data <- pilot_data_pre[pilot_data_pre[,"session_type"] == "pilot" & pilot_data_pre[,"laboratory_ID_code"] == lab_ID, ]
+    } else if(source_data == "test"){
+      pilot_data <- pilot_data_pre
+    } else {
+        pilot_data <- NA
+        }
     
     
     # Number of participants tested in the pilot test
-    sample_size_participants = length(unique(pilot_data[, "participant_ID"]))
+    sample_size_participants_started_session = length(unique(pilot_data[, "participant_ID"]))
     
     
     pilot_data[, "trial_number"] = as.numeric(pilot_data[, "trial_number"])
@@ -240,6 +226,26 @@ shinyServer(function(input, output){
     data_BF = pilot_data[!is.na(pilot_data[, "trial_number"]) & pilot_data[, "reward_type"] == "erotic", ]
     
     data_BF[,"participant_ID"] = droplevels(data_BF[,"participant_ID"])
+    sample_size_participants_atleast1erotictrial = length(unique(data_BF[,"participant_ID"]))
+    
+    
+    # total number of valid erotic trials
+    total_N = nrow(data_BF)
+    
+    # number of missing trials (data points)
+    data_BF_split_by_participants = split(data_BF, f = data_BF[,"participant_ID"])
+    total_missing_trials = sum(sapply(data_BF_split_by_participants, function(x) trial_size_per_participant-nrow(x)))
+    
+    # latest interim analysis point
+    latest_crucial_test_at = if(min(when_to_check) < total_N){
+      when_to_check[max(which(when_to_check < total_N))]
+    } else {NA}
+    
+    # next interim analysis point
+    next_crucial_test_at = if(max(when_to_check) > total_N){
+      when_to_check[min(which(when_to_check > total_N))]
+    } else {NA}
+    
     
     
     ######################################################################
@@ -260,7 +266,7 @@ shinyServer(function(input, output){
     # number of successes and total N of trials
     sides_match = data_BF[,"guessed_side"] == data_BF[,"target_side"]
     successes = sum(sides_match)
-    total_N = nrow(data_BF)
+
     
     
     #================================================================#
@@ -373,7 +379,6 @@ shinyServer(function(input, output){
     HDI_ub = hdi_result[3]
     
     # making inference decision
-    ROPE = M0_prob+minimum_effect_threshold_Bayes_Par_Est
     if(HDI_lb >= ROPE){inference_robustness_Bayes_Par_Est = "M1"
     } else if(HDI_ub <= ROPE){inference_robustness_Bayes_Par_Est = "M0"
     } else {inference_robustness_Bayes_Par_Est = "Inconclusive"}
@@ -390,6 +395,185 @@ shinyServer(function(input, output){
     Robust = if(inference_BF == inference_robustness){"robust"} else {"not robust"}
     
     
+    
+    
+    
+    
+    
+    #######################################################################
+    #                                                                     #
+    #             Crucial test at latest interim analysis point           #
+    #                                                                     #
+    #######################################################################
+    
+    if(!is.na(latest_crucial_test_at)){
+      sides_match_at_latest_crucial_test = sides_match[1:latest_crucial_test_at]
+      successes_at_latest_crucial_test = successes[1:latest_crucial_test_at]
+      total_N_at_latest_crucial_test = latest_crucial_test_at
+      
+      
+      ### Replication Bayes factor, with the Bem 2011 experiment 1 results providing the prior information
+      
+      BF_replication_at_latest_crucial_test <- BF01_beta(y = successes_at_latest_crucial_test, N = total_N_at_latest_crucial_test, y_prior = y_prior, N_prior = N_prior, interval = c(0.5,1), null_prob = M0_prob) #numbers higher than 1 support the null
+      
+      
+      ### Bayes factor with uniform prior
+      # using a non-informative flat prior distribution with alpha = 1 and beta = 1
+      
+      BF_uniform_at_latest_crucial_test <- BF01_beta(y = successes_at_latest_crucial_test, N = total_N_at_latest_crucial_test, y_prior = 0, N_prior = 0, interval = c(0.5,1), null_prob = M0_prob) #numbers higher than 1 support the null
+      
+      
+      ### Bayes factor with BUJ prior
+      # the BUJ prior is calculated from Bem's paper where the prior distribution is defined as a
+      # normal distribution with a mean at 0 and 90th percentele is at medium effect size d = 0.5 
+      # (we asume that this is one-tailed). Source: Bem, D. J., Utts, J., & Johnson, W. O. (2011). 
+      # Must psychologists change the way they analyze their data? Journal of Personality and Social Psychology, 101(4), 716-719.
+      # We simulate this in this binomial framework with a one-tailed beta distribution with alpha = 7 and beta = 7.
+      # This distribution has 90% of its probability mass under p = 0.712, which we determined 
+      # to be equivalent to d = 0.5 medium effect size. We used the formula to convert d to log odds ratio logodds = d*pi/sqrt(3), 
+      # found here: Borenstein, M., Hedges, L. V., Higgins, J. P. T., & Rothstein, H. R. (2009). 
+      # Converting Among Effect Sizes. In Introduction to Meta-Analysis (pp. 45-49): John Wiley & Sons, Ltd.
+      # Then, log odds ratio vas converted to probability using the formula: p = exp(x)/(1+exp(x))
+      # The final equation: exp(d*pi/sqrt(3))/(1+exp(d*pi/sqrt(3)))
+      
+      BF_BUJ_at_latest_crucial_test <- BF01_beta(y = successes_at_latest_crucial_test, N = total_N_at_latest_crucial_test, y_prior = 6, N_prior = 12, interval = c(0.5,1), null_prob = M0_prob) #numbers higher than 1 support the null
+      
+      
+      #================================================================#
+      #                    Main analysis inference                     #
+      #================================================================#
+      
+      # determine inference (supported model) based on the Bayes factors calculated above  
+      if(Inference_threshold_BF_low >= max(c(BF_replication_at_latest_crucial_test, BF_uniform_at_latest_crucial_test, BF_BUJ_at_latest_crucial_test))) {
+        inference_BF_at_latest_crucial_test = "M1"
+        break} else if(Inference_threshold_BF_high <= min(c(BF_replication_at_latest_crucial_test, BF_uniform_at_latest_crucial_test, BF_BUJ_at_latest_crucial_test))) {
+          inference_BF_at_latest_crucial_test = "M0"
+          break} else {inference_BF_at_latest_crucial_test = "Inconclusive"}
+      
+      
+      
+      
+      
+      ##################################################
+      #                 Robustness tests               #
+      ##################################################
+      
+      #================================================================#
+      #               Robustness test of BF results with NHST          #
+      #================================================================#
+      
+      # robustness of BF results is tested with NHST proportion tests
+      # here we perform both an equality test and an equivalence test to draw statistical inference
+      
+      
+      # equality test
+      equality_test_p_at_latest_crucial_test = prop.test(x = successes_at_latest_crucial_test, n = total_N_at_latest_crucial_test, p = M0_prob, alternative = "greater")$p.value
+      
+      # equivalence test
+      equivalence_test_p_at_latest_crucial_test = prop.test(x = successes_at_latest_crucial_test, n = total_N_at_latest_crucial_test,
+                                                            p = M0_prob+minimum_effect_threshold_NHST, 
+                                                            alternative = "less")$p.value
+      
+      # descritives of the frequentist estimate
+      pbar = successes_at_latest_crucial_test/total_N_at_latest_crucial_test
+      SE = sqrt(pbar * (1-pbar)/total_N_at_latest_crucial_test)
+      E = qnorm(.9975) * SE
+      proportion_995CI = round(pbar + c(-E , E), 3)
+      
+      
+      
+      # making inference decision
+      if((Inference_threshold_robustness_NHST > equality_test_p_at_latest_crucial_test) & 
+         (Inference_threshold_robustness_NHST <= equivalence_test_p_at_latest_crucial_test)){
+        inference_robustness_NHST_at_latest_crucial_test = "M1"} else if((Inference_threshold_robustness_NHST > equivalence_test_p_at_latest_crucial_test) & 
+                                                                         (Inference_threshold_robustness_NHST <= equality_test_p_at_latest_crucial_test)){
+          inference_robustness_NHST_at_latest_crucial_test = "M0" 
+        } else {inference_robustness_NHST_at_latest_crucial_test = "Inconclusive"}
+      
+      
+      #=======================================================================#
+      #   Robustness test of BF results with Bayesian parameter estimation    #
+      #=======================================================================#
+      
+      # robustness of BF results is tested by calculating HDI of the posteriro distribution and checking its relation to
+      # the region of practical equivalence (ROPE), promoted in Kruschke, J. K., & Liddell, T. M. 
+      # (2017). The Bayesian New Statistics: Hypothesis testing, estimation, meta-analysis, and power 
+      # analysis from a Bayesian perspective. Psychonomic Bulletin & Review, 1-29. 
+      
+      # calculate posterior distribution using beta distribution
+      prior_alpha = y_prior + 1
+      prior_beta = N_prior-y_prior+1
+      
+      posterior_alpha_at_latest_crucial_test = prior_alpha + successes_at_latest_crucial_test
+      posterior_beta_at_latest_crucial_test = prior_beta + total_N_at_latest_crucial_test - successes_at_latest_crucial_test
+      
+      scale = seq(0, 1, length = 1001)
+      posterior_density_at_latest_crucial_test = dbeta(scale, posterior_alpha_at_latest_crucial_test, posterior_beta_at_latest_crucial_test)
+      
+      # calculate HDI for the posterior distribution
+      # (here we calculate the upper and lower bound of the 90% of the probability mass
+      # because we use a one-tailed test. This means that the total probability mass below
+      # the upper bound of the 90% HDI will be 95%)
+      hdi_result_at_latest_crucial_test = mode_HDI(scale = scale, density = posterior_density_at_latest_crucial_test, crit_width = 1-Inference_threshold_robustness_Bayes_Par_Est*2, n_samples = 1e6)
+      
+      # parameters for decision making
+      HDI_lb_at_latest_crucial_test = hdi_result_at_latest_crucial_test[2]
+      HDI_ub_at_latest_crucial_test = hdi_result_at_latest_crucial_test[3]
+      
+      # making inference decision
+      if(HDI_lb_at_latest_crucial_test >= ROPE){inference_robustness_Bayes_Par_Est_at_latest_crucial_test = "M1"
+      } else if(HDI_ub_at_latest_crucial_test <= ROPE){inference_robustness_Bayes_Par_Est_at_latest_crucial_test = "M0"
+      } else {inference_robustness_Bayes_Par_Est_at_latest_crucial_test = "Inconclusive"}
+      
+      
+      #=======================================================================#
+      #      Determine final inference of all robustness tests combined       #
+      #=======================================================================#
+      
+      # the main analysis inference is only robust if all robustness tests came to the same inference as the main test
+      inferences_at_latest_crucial_test = c(inference_robustness_NHST_at_latest_crucial_test, inference_robustness_Bayes_Par_Est_at_latest_crucial_test)
+      inference_robustness_at_latest_crucial_test = if(all(inferences_at_latest_crucial_test == inferences_at_latest_crucial_test[1])){inferences_at_latest_crucial_test[1]} else {"mixed"}
+      
+      Robust_at_latest_crucial_test = if(inference_BF_at_latest_crucial_test == inference_robustness_at_latest_crucial_test){"robust"} else {"not robust"}
+      
+      
+      
+      
+      
+      
+      
+      inference_at_latest_crucial_test = 
+        if(inference_BF_at_latest_crucial_test == "M1" & Robust_at_latest_crucial_test == "robust"){
+          "M1 supported and robust"
+        } else if(inference_BF_at_latest_crucial_test == "M0" & Robust_at_latest_crucial_test == "robust"){
+          "M0 supported and robust"
+        } else if(inference_BF_at_latest_crucial_test == "M1" & Robust_at_latest_crucial_test == "not robust"){
+          "M1 supported but not robust"
+        } else if(inference_BF_at_latest_crucial_test == "M0" & Robust_at_latest_crucial_test == "not robust"){
+          "M0 supported but not robust"
+        } else if(inference_BF_at_latest_crucial_test == "Inconclusive"){
+          "Inconclusive result"
+        } else { NA }
+      
+      data_collection_status_at_latest_crucial_test = 
+        if(inference_at_last_crucial_check == "M1 supported and robust" | "M0 supported and robust"){
+          "stopped"
+        } else {
+          "running"
+        }
+      
+    }
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
     ######################################################################
     #                                                                    #
     #                   Interpretation and visualization                 #
@@ -403,15 +587,7 @@ shinyServer(function(input, output){
     BF_results_for_plotting = cbind(as.data.frame(c(BF_replication, BF_uniform, BF_BUJ)), c("BF_replication", "BF_uniform", "BF_BUJ"))
     names(BF_results_for_plotting) = c("Bayes_factor_01", "BF_type")
     
-    plot <- ggplot(BF_results_for_plotting, aes(y = Bayes_factor_01, x = BF_type))+
-      geom_point()+
-      geom_rect(aes(xmin=-Inf, xmax=Inf, ymin=c(Inference_threshold_BF_high), ymax=c(Inf)), alpha = 0.2, fill=c("pink"))+
-      geom_rect(aes(xmin=-Inf, xmax=Inf, ymin=c(Inference_threshold_BF_low), ymax=c(Inference_threshold_BF_high)), alpha = 0.2, fill=c("grey80"))+
-      geom_rect(aes(xmin=-Inf, xmax=Inf, ymin=c(0), ymax=c(Inference_threshold_BF_low)), alpha = 0.2, fill=c("lightgreen"))+
-      geom_point(size = 3.5, shape = 21, fill = "white")+
-      scale_y_log10(limits = c(0.005,200), breaks=c(0.01, Inference_threshold_BF_low, 0.1, 0.33, 0, 3, 10, Inference_threshold_BF_high, 100))+
-      geom_hline(yintercept = c(Inference_threshold_BF_low, Inference_threshold_BF_high), linetype = "dashed")+
-      geom_text(aes(x=0.5, y=c(100, 1, 0.01), label=c("Supports M0", "Inconclusive", "Supports M1"), angle = 270))
+    
     
     
     
@@ -420,1035 +596,47 @@ shinyServer(function(input, output){
     #       Report of confirmatory analysis          #
     ##################################################
     
-    # number of erotic trials performed (without the last participant, whose data might
-    # be cut in half because of the interim stopping point)
-    numtrials_without_last_part = nrow(data_BF[data_BF[,"participant_ID"] != data_BF[nrow(data_BF),"participant_ID"],])
-    # number of missing trials/data points (minus the last participant, who might be cut in half)
-    missing_data_points = (length(unique(data_BF[data_BF[,"participant_ID"] != data_BF[nrow(data_BF),"participant_ID"], "participant_ID"])) * trial_size_per_participant) - numtrials_without_last_part 
+
     
-    
-    general_text = paste("As of  ", Sys.time(), "  (time zone:  ", Sys.timezone(), "), a total of ",  total_N, " erotic trials were observed, gathered from a total of ",
-                         sample_size_participants, " participants.", " There has been ", missing_data_points, " (", round(missing_data_points/total_N*100,2),"%) missing data points due to unfinished sessions.", 
+    general_text_first_part = paste("The study stopped at ", total_N, " erotic trials gathered from a total of ",
+                         sample_size_participants_atleast1erotictrial, " participants.", " There has been ", total_missing_trials, " (", round(total_missing_trials/total_N*100,2),"%) missing data points due to incomplete sessions.", 
                          " We observed a total of ", round(mean(sides_match), 4)*100, "% successful guesses within ",
                          total_N, " erotic trials (99.5% CI = ", proportion_995CI[1]*100, "%", ", ", proportion_995CI[2]*100, "%", 
                          "; posterior mode = ", hdi_result[1]*100, "%", ", posterior 90% HDI = ", HDI_lb*100, "%", ", ",
                          HDI_ub*100, "%", ").", sep = "")
     
-    robustness_text = if(Robust == "robust"){paste(" The results proved to be robust to different statistical approaches, increasing our confidence in our inference.")} else if(Robust == "not robust"){
-      paste(" However, the results did not prove to be robust to different statistical approaches.")}
-    
-    
-    
-    
-    
-    
-    
-    
-    if(inference_BF == "M1"){
-      paste(general_text, " Observing this success rate is ", round(1/max(c(BF_replication, BF_uniform, BF_BUJ)),0),
+    general_text_second_half = if(inference_BF == "M1"){
+      paste(" Observing this success rate is ", round(1/max(c(BF_replication, BF_uniform, BF_BUJ)),0),
             " times more likely if humans can guess future randomly determined events than if they are guessing randomly. Taken at face value, the data provide strong evidence that the probability of successfully guessing later computer-generated random events is higher than chance level as previously reported by Bem (2011) and others (Bem, Tressoldi, Rabeyron, & Duggan, 2015).",
-            robustness_text, sep = "")
+            sep = "")
     } else if(inference_BF == "M0"){
-      paste(general_text, " Observing this success rate is ", round(min(c(BF_replication, BF_uniform, BF_BUJ)),0),
+      paste(" Observing this success rate is ", round(min(c(BF_replication, BF_uniform, BF_BUJ)),0),
             " times more likely if humans are guessing randomly than if they can guess future randomly determined events. Taken at face value, the data provide strong evidence that the probability of successfully guessing later computer-generated random events is not higher than chance level as previously reported by Bem (2011) and others (Bem, Tressoldi, Rabeyron, & Duggan, 2015).",
-            robustness_text, sep = "")
+            sep = "")
     } else if(inference_BF == "Inconclusive" & max(c(BF_replication, BF_uniform, BF_BUJ)) < 1){
-      paste(general_text, " Observing this success rate is ", round(1/max(c(BF_replication, BF_uniform, BF_BUJ)),0),
+      paste(" Observing this success rate is ", round(1/max(c(BF_replication, BF_uniform, BF_BUJ)),0),
             " times more likely if humans can guess future randomly determined events than if they are guessing randomly. However, this study outcome did not reach the pre-specified criteria of strong support for either model.",
-            robustness_text, sep = "")
+            sep = "")
     } else if(inference_BF == "Inconclusive" & min(c(BF_replication, BF_uniform, BF_BUJ)) > 1){
-      paste(general_text, " Observing this success rate is ", round(min(c(BF_replication, BF_uniform, BF_BUJ)),0),
+      paste(" Observing this success rate is ", round(min(c(BF_replication, BF_uniform, BF_BUJ)),0),
             " times more likely if humans are guessing randomly than if they can guess future randomly determined events. However, this study outcome did not reach the pre-specified criteria of strong support for either model.",
-            robustness_text, sep = "")
-    } else {paste(general_text, "However, this study outcome did not reach the pre-specified criteria of strong support for either model.",
-                  robustness_text, sep = "")}
+            sep = "")
+    } else {paste("However, this study outcome did not reach the pre-specified criteria of strong support for either model.",
+                  sep = "")}
     
-  })
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-
-  
-  
-  
-  
-  
-  
-  output$plot1a <- renderPlot({
-    invalidateLater(600000)
-    
-    
-    
-    ######################################################################
-    #                                                                    #
-    #                         Data management                            #
-    #                                                                    #
-    ######################################################################
-    
-    # get up to date date from github
-    pilot_data_pre <- read.csv("https://raw.githubusercontent.com/gy0p4k/transparent-psi-results/master/results.csv")
-    
-    # only read pilot sessions
-    # pilot sessions are marked with session_type = "pilot" and they were all collected in the lab with the laboratory_ID_code = "lab_ELTE_01"
-    lab_ID <- "lab_ELTE_01"
-    pilot_data <- pilot_data_pre[pilot_data_pre[,"session_type"] == "pilot" & pilot_data_pre[,"laboratory_ID_code"] == "lab_ELTE_01", ]
-    
-    
-    # Number of participants tested in the pilot test
-    sample_size_participants = length(unique(pilot_data[, "participant_ID"]))
-    
-    
-    pilot_data[, "trial_number"] = as.numeric(pilot_data[, "trial_number"])
-    
-    #extract data from erotic trials 
-    data_BF = pilot_data[!is.na(pilot_data[, "trial_number"]) & pilot_data[, "reward_type"] == "erotic", ]
-    
-    data_BF[,"participant_ID"] = droplevels(data_BF[,"participant_ID"])
-    
-    
-    ######################################################################
-    #                                                                    #
-    #                          Data analysis                             #
-    #                                                                    #
-    ######################################################################
-    
-    
-    ######################################################################
-    #                       Primary confirmatory test                    #
-    ######################################################################
-    
-    #================================================================#
-    #                Calculate number of successes                   #
-    #================================================================#
-    
-    # number of successes and total N of trials
-    sides_match = data_BF[,"guessed_side"] == data_BF[,"target_side"]
-    successes = sum(sides_match)
-    total_N = nrow(data_BF)
-    
-    
-    #================================================================#
-    #        Calculating Bayes factors using different priors        #
-    #================================================================#
-    
-    ### Replication Bayes factor, with the Bem 2011 experiment 1 results providing the prior information
-    
-    BF_replication <- BF01_beta(y = successes, N = total_N, y_prior = y_prior, N_prior = N_prior, interval = c(0.5,1), null_prob = M0_prob) #numbers higher than 1 support the null
-    
-    
-    ### Bayes factor with uniform prior
-    # using a non-informative flat prior distribution with alpha = 1 and beta = 1
-    
-    BF_uniform <- BF01_beta(y = successes, N = total_N, y_prior = 0, N_prior = 0, interval = c(0.5,1), null_prob = M0_prob) #numbers higher than 1 support the null
-    
-    
-    ### Bayes factor with BUJ prior
-    # the BUJ prior is calculated from Bem's paper where the prior distribution is defined as a
-    # normal distribution with a mean at 0 and 90th percentele is at medium effect size d = 0.5 
-    # (we asume that this is one-tailed). Source: Bem, D. J., Utts, J., & Johnson, W. O. (2011). 
-    # Must psychologists change the way they analyze their data? Journal of Personality and Social Psychology, 101(4), 716-719.
-    # We simulate this in this binomial framework with a one-tailed beta distribution with alpha = 7 and beta = 7.
-    # This distribution has 90% of its probability mass under p = 0.712, which we determined 
-    # to be equivalent to d = 0.5 medium effect size. We used the formula to convert d to log odds ratio logodds = d*pi/sqrt(3), 
-    # found here: Borenstein, M., Hedges, L. V., Higgins, J. P. T., & Rothstein, H. R. (2009). 
-    # Converting Among Effect Sizes. In Introduction to Meta-Analysis (pp. 45-49): John Wiley & Sons, Ltd.
-    # Then, log odds ratio vas converted to probability using the formula: p = exp(x)/(1+exp(x))
-    # The final equation: exp(d*pi/sqrt(3))/(1+exp(d*pi/sqrt(3)))
-    
-    BF_BUJ <- BF01_beta(y = successes, N = total_N, y_prior = 6, N_prior = 12, interval = c(0.5,1), null_prob = M0_prob) #numbers higher than 1 support the null
-    
-    
-    #================================================================#
-    #                    Main analysis inference                     #
-    #================================================================#
-    
-    # determine inference (supported model) based on the Bayes factors calculated above  
-    if(Inference_threshold_BF_low >= max(c(BF_replication, BF_uniform, BF_BUJ))) {
-      inference_BF = "M1"
-      break} else if(Inference_threshold_BF_high <= min(c(BF_replication, BF_uniform, BF_BUJ))) {
-        inference_BF = "M0"
-        break} else {inference_BF = "Inconclusive"}
-    
-    
-    ##################################################
-    #                 Robustness tests               #
-    ##################################################
-    
-    #================================================================#
-    #               Robustness test of BF results with NHST          #
-    #================================================================#
-    
-    # robustness of BF results is tested with NHST proportion tests
-    # here we perform both an equality test and an equivalence test to draw statistical inference
-    
-    
-    # equality test
-    equality_test_p = prop.test(x = successes, n = total_N, p = M0_prob, alternative = "greater")$p.value
-    
-    # equivalence test
-    equivalence_test_p = prop.test(x = successes, n = total_N,
-                                   p = M0_prob+minimum_effect_threshold_NHST, 
-                                   alternative = "less")$p.value
-    
-    # descritives of the frequentist estimate
-    pbar = successes/total_N
-    SE = sqrt(pbar * (1-pbar)/total_N)
-    E = qnorm(.9975) * SE
-    proportion_995CI = round(pbar + c(-E , E), 3)
-    
-    
-    
-    # making inference decision
-    if((Inference_threshold_robustness_NHST > equality_test_p) & 
-       (Inference_threshold_robustness_NHST <= equivalence_test_p)){
-      inference_robustness_NHST = "M1"} else if((Inference_threshold_robustness_NHST > equivalence_test_p) & 
-                                                (Inference_threshold_robustness_NHST <= equality_test_p)){
-        inference_robustness_NHST = "M0" 
-      } else {inference_robustness_NHST = "Inconclusive"}
-    
-    
-    #=======================================================================#
-    #   Robustness test of BF results with Bayesian parameter estimation    #
-    #=======================================================================#
-    
-    # robustness of BF results is tested by calculating HDI of the posteriro distribution and checking its relation to
-    # the region of practical equivalence (ROPE), promoted in Kruschke, J. K., & Liddell, T. M. 
-    # (2017). The Bayesian New Statistics: Hypothesis testing, estimation, meta-analysis, and power 
-    # analysis from a Bayesian perspective. Psychonomic Bulletin & Review, 1-29. 
-    
-    # calculate posterior distribution using beta distribution
-    prior_alpha = y_prior + 1
-    prior_beta = N_prior-y_prior+1
-    
-    posterior_alpha = prior_alpha + successes
-    posterior_beta = prior_beta + total_N - successes
-    
-    scale = seq(0, 1, length = 1001)
-    posterior_density = dbeta(scale, posterior_alpha, posterior_beta)
-    
-    # calculate HDI for the posterior distribution
-    # (here we calculate the upper and lower bound of the 90% of the probability mass
-    # because we use a one-tailed test. This means that the total probability mass below
-    # the upper bound of the 90% HDI will be 95%)
-    hdi_result = mode_HDI(scale = scale, density = posterior_density, crit_width = 1-Inference_threshold_robustness_Bayes_Par_Est*2, n_samples = 1e6)
-    
-    # parameters for decision making
-    HDI_lb = hdi_result[2]
-    HDI_ub = hdi_result[3]
-    
-    # making inference decision
-    ROPE = M0_prob+minimum_effect_threshold_Bayes_Par_Est
-    if(HDI_lb >= ROPE){inference_robustness_Bayes_Par_Est = "M1"
-    } else if(HDI_ub <= ROPE){inference_robustness_Bayes_Par_Est = "M0"
-    } else {inference_robustness_Bayes_Par_Est = "Inconclusive"}
-    
-    
-    #=======================================================================#
-    #      Determine final inference of all robustness tests combined       #
-    #=======================================================================#
-    
-    # the main analysis inference is only robust if all robustness tests came to the same inference as the main test
-    inferences = c(inference_robustness_NHST, inference_robustness_Bayes_Par_Est)
-    inference_robustness = if(all(inferences == inferences[1])){inferences[1]} else {"mixed"}
-    
-    Robust = if(inference_BF == inference_robustness){"robust"} else {"not robust"}
-    
-    
-    ######################################################################
-    #                                                                    #
-    #                   Interpretation and visualization                 #
-    #                                                                    #
-    ######################################################################
-    
-    
-    # visualize results
-    # ALL THREE BF values need to cross the threshold for the interpretation to be accepted
-    
-    BF_results_for_plotting = cbind(as.data.frame(c(BF_replication, BF_uniform, BF_BUJ)), c("BF_replication", "BF_uniform", "BF_BUJ"))
-    names(BF_results_for_plotting) = c("Bayes_factor_01", "BF_type")
-    
-    plot <- ggplot(BF_results_for_plotting, aes(y = Bayes_factor_01, x = BF_type))+
-      geom_point()+
-      geom_rect(aes(xmin=-Inf, xmax=Inf, ymin=c(Inference_threshold_BF_high), ymax=c(Inf)), alpha = 0.2, fill=c("pink"))+
-      geom_rect(aes(xmin=-Inf, xmax=Inf, ymin=c(Inference_threshold_BF_low), ymax=c(Inference_threshold_BF_high)), alpha = 0.2, fill=c("grey80"))+
-      geom_rect(aes(xmin=-Inf, xmax=Inf, ymin=c(0), ymax=c(Inference_threshold_BF_low)), alpha = 0.2, fill=c("lightgreen"))+
-      geom_point(size = 3.5, shape = 21, fill = "white")+
-      scale_y_log10(limits = c(0.005,200), breaks=c(0.01, Inference_threshold_BF_low, 0.1, 0.33, 0, 3, 10, Inference_threshold_BF_high, 100))+
-      geom_hline(yintercept = c(Inference_threshold_BF_low, Inference_threshold_BF_high), linetype = "dashed")+
-      geom_text(aes(x=0.5, y=c(100, 1, 0.01), label=c("Supports M0", "Inconclusive", "Supports M1"), angle = 270))
-    
-    
-    
-    
-    ##################################################
-    #       Report of confirmatory analysis          #
-    ##################################################
-    
-    # number of erotic trials performed (without the last participant, whose data might
-    # be cut in half because of the interim stopping point)
-    numtrials_without_last_part = nrow(data_BF[data_BF[,"participant_ID"] != data_BF[nrow(data_BF),"participant_ID"],])
-    # number of missing trials/data points (minus the last participant, who might be cut in half)
-    missing_data_points = (length(unique(data_BF[data_BF[,"participant_ID"] != data_BF[nrow(data_BF),"participant_ID"], "participant_ID"])) * trial_size_per_participant) - numtrials_without_last_part 
-    
-    
-    general_text = paste("The study stopped at ", total_N, " erotic trials gathered from a total of ",
-                         sample_size_participants, " participants.", " There has been ", missing_data_points, " (", round(missing_data_points/total_N*100,2),"%) missing data points due to unfinished sessions.", 
-                         " We observed a total of ", round(mean(sides_match), 4)*100, "% successful guesses within ",
-                         total_N, " erotic trials (99.5% CI = ", proportion_995CI[1]*100, "%", ", ", proportion_995CI[2]*100, "%", 
-                         "; posterior mode = ", hdi_result[1]*100, "%", ", posterior 90% HDI = ", HDI_lb*100, "%", ", ",
-                         HDI_ub*100, "%", ").", sep = "")
-    
-    robustness_text = if(Robust == "robust"){paste(" The results proved to be robust to different statistical approaches, increasing our confidence in our inference.")} else if(Robust == "not robust"){
-    paste(" However, the results did not prove to be robust to different statistical approaches.")}
-    
-    print(plot)
-  })
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  output$plot1b <- renderPlot({
-    invalidateLater(600000)
-    
-    
-    
-    ######################################################################
-    #                                                                    #
-    #                         Data management                            #
-    #                                                                    #
-    ######################################################################
-    
-    # get up to date date from github
-    pilot_data_pre <- read.csv("https://raw.githubusercontent.com/gy0p4k/transparent-psi-results/master/results.csv")
-    
-    # only read pilot sessions
-    # pilot sessions are marked with session_type = "pilot" and they were all collected in the lab with the laboratory_ID_code = "lab_ELTE_01"
-    lab_ID <- "lab_ELTE_01"
-    pilot_data <- pilot_data_pre[pilot_data_pre[,"session_type"] == "pilot" & pilot_data_pre[,"laboratory_ID_code"] == "lab_ELTE_01", ]
-    
-    
-    # Number of participants tested in the pilot test
-    sample_size_participants = length(unique(pilot_data[, "participant_ID"]))
-    
-    
-    pilot_data[, "trial_number"] = as.numeric(pilot_data[, "trial_number"])
-    
-    #extract data from erotic trials 
-    data_BF = pilot_data[!is.na(pilot_data[, "trial_number"]) & pilot_data[, "reward_type"] == "erotic", ]
-    
-    data_BF[,"participant_ID"] = droplevels(data_BF[,"participant_ID"])
-    
-    
-    ######################################################################
-    #                                                                    #
-    #                          Data analysis                             #
-    #                                                                    #
-    ######################################################################
-    
-    
-    ######################################################################
-    #                       Primary confirmatory test                    #
-    ######################################################################
-    
-    #================================================================#
-    #                Calculate number of successes                   #
-    #================================================================#
-    
-    # number of successes and total N of trials
-    sides_match = data_BF[,"guessed_side"] == data_BF[,"target_side"]
-    successes = sum(sides_match)
-    total_N = nrow(data_BF)
-    
-    
-    #================================================================#
-    #        Calculating Bayes factors using different priors        #
-    #================================================================#
-    
-    ### Replication Bayes factor, with the Bem 2011 experiment 1 results providing the prior information
-    
-    BF_replication <- BF01_beta(y = successes, N = total_N, y_prior = y_prior, N_prior = N_prior, interval = c(0.5,1), null_prob = M0_prob) #numbers higher than 1 support the null
-    
-    
-    ### Bayes factor with uniform prior
-    # using a non-informative flat prior distribution with alpha = 1 and beta = 1
-    
-    BF_uniform <- BF01_beta(y = successes, N = total_N, y_prior = 0, N_prior = 0, interval = c(0.5,1), null_prob = M0_prob) #numbers higher than 1 support the null
-    
-    
-    ### Bayes factor with BUJ prior
-    # the BUJ prior is calculated from Bem's paper where the prior distribution is defined as a
-    # normal distribution with a mean at 0 and 90th percentele is at medium effect size d = 0.5 
-    # (we asume that this is one-tailed). Source: Bem, D. J., Utts, J., & Johnson, W. O. (2011). 
-    # Must psychologists change the way they analyze their data? Journal of Personality and Social Psychology, 101(4), 716-719.
-    # We simulate this in this binomial framework with a one-tailed beta distribution with alpha = 7 and beta = 7.
-    # This distribution has 90% of its probability mass under p = 0.712, which we determined 
-    # to be equivalent to d = 0.5 medium effect size. We used the formula to convert d to log odds ratio logodds = d*pi/sqrt(3), 
-    # found here: Borenstein, M., Hedges, L. V., Higgins, J. P. T., & Rothstein, H. R. (2009). 
-    # Converting Among Effect Sizes. In Introduction to Meta-Analysis (pp. 45-49): John Wiley & Sons, Ltd.
-    # Then, log odds ratio vas converted to probability using the formula: p = exp(x)/(1+exp(x))
-    # The final equation: exp(d*pi/sqrt(3))/(1+exp(d*pi/sqrt(3)))
-    
-    BF_BUJ <- BF01_beta(y = successes, N = total_N, y_prior = 6, N_prior = 12, interval = c(0.5,1), null_prob = M0_prob) #numbers higher than 1 support the null
-    
-    
-    #================================================================#
-    #                    Main analysis inference                     #
-    #================================================================#
-    
-    # determine inference (supported model) based on the Bayes factors calculated above  
-    if(Inference_threshold_BF_low >= max(c(BF_replication, BF_uniform, BF_BUJ))) {
-      inference_BF = "M1"
-      break} else if(Inference_threshold_BF_high <= min(c(BF_replication, BF_uniform, BF_BUJ))) {
-        inference_BF = "M0"
-        break} else {inference_BF = "Inconclusive"}
-    
-    
-    ##################################################
-    #                 Robustness tests               #
-    ##################################################
-    
-    #================================================================#
-    #               Robustness test of BF results with NHST          #
-    #================================================================#
-    
-    # robustness of BF results is tested with NHST proportion tests
-    # here we perform both an equality test and an equivalence test to draw statistical inference
-    
-    
-    # equality test
-    equality_test_p = prop.test(x = successes, n = total_N, p = M0_prob, alternative = "greater")$p.value
-    
-    # equivalence test
-    equivalence_test_p = prop.test(x = successes, n = total_N,
-                                   p = M0_prob+minimum_effect_threshold_NHST, 
-                                   alternative = "less")$p.value
-    
-    # descritives of the frequentist estimate
-    pbar = successes/total_N
-    SE = sqrt(pbar * (1-pbar)/total_N)
-    E = qnorm(.9975) * SE
-    proportion_995CI = round(pbar + c(-E , E), 3)
-    
-    
-    
-    # making inference decision
-    if((Inference_threshold_robustness_NHST > equality_test_p) & 
-       (Inference_threshold_robustness_NHST <= equivalence_test_p)){
-      inference_robustness_NHST = "M1"} else if((Inference_threshold_robustness_NHST > equivalence_test_p) & 
-                                                (Inference_threshold_robustness_NHST <= equality_test_p)){
-        inference_robustness_NHST = "M0" 
-      } else {inference_robustness_NHST = "Inconclusive"}
-    
-    
-    #=======================================================================#
-    #   Robustness test of BF results with Bayesian parameter estimation    #
-    #=======================================================================#
-    
-    # robustness of BF results is tested by calculating HDI of the posteriro distribution and checking its relation to
-    # the region of practical equivalence (ROPE), promoted in Kruschke, J. K., & Liddell, T. M. 
-    # (2017). The Bayesian New Statistics: Hypothesis testing, estimation, meta-analysis, and power 
-    # analysis from a Bayesian perspective. Psychonomic Bulletin & Review, 1-29. 
-    
-    # calculate posterior distribution using beta distribution
-    prior_alpha = y_prior + 1
-    prior_beta = N_prior-y_prior+1
-    
-    posterior_alpha = prior_alpha + successes
-    posterior_beta = prior_beta + total_N - successes
-    
-    scale = seq(0, 1, length = 1001)
-    posterior_density = dbeta(scale, posterior_alpha, posterior_beta)
-    
-    # calculate HDI for the posterior distribution
-    # (here we calculate the upper and lower bound of the 90% of the probability mass
-    # because we use a one-tailed test. This means that the total probability mass below
-    # the upper bound of the 90% HDI will be 95%)
-    hdi_result = mode_HDI(scale = scale, density = posterior_density, crit_width = 1-Inference_threshold_robustness_Bayes_Par_Est*2, n_samples = 1e6)
-    
-    # parameters for decision making
-    HDI_lb = hdi_result[2]
-    HDI_ub = hdi_result[3]
-    
-    # making inference decision
-    ROPE = M0_prob+minimum_effect_threshold_Bayes_Par_Est
-    if(HDI_lb >= ROPE){inference_robustness_Bayes_Par_Est = "M1"
-    } else if(HDI_ub <= ROPE){inference_robustness_Bayes_Par_Est = "M0"
-    } else {inference_robustness_Bayes_Par_Est = "Inconclusive"}
-    
-    
-    #=======================================================================#
-    #      Determine final inference of all robustness tests combined       #
-    #=======================================================================#
-    
-    # the main analysis inference is only robust if all robustness tests came to the same inference as the main test
-    inferences = c(inference_robustness_NHST, inference_robustness_Bayes_Par_Est)
-    inference_robustness = if(all(inferences == inferences[1])){inferences[1]} else {"mixed"}
-    
-    Robust = if(inference_BF == inference_robustness){"robust"} else {"not robust"}
-    
-    
-    ######################################################################
-    #                                                                    #
-    #                   Interpretation and visualization                 #
-    #                                                                    #
-    ######################################################################
-    
-    
-    # visualize results
-    # ALL THREE BF values need to cross the threshold for the interpretation to be accepted
-    
-    BF_results_for_plotting = cbind(as.data.frame(c(BF_replication, BF_uniform, BF_BUJ)), c("BF_replication", "BF_uniform", "BF_BUJ"))
-    names(BF_results_for_plotting) = c("Bayes_factor_01", "BF_type")
-    
-    plot <- ggplot(BF_results_for_plotting, aes(y = Bayes_factor_01, x = BF_type))+
-      geom_point()+
-      geom_rect(aes(xmin=-Inf, xmax=Inf, ymin=c(Inference_threshold_BF_high), ymax=c(Inf)), alpha = 0.2, fill=c("pink"))+
-      geom_rect(aes(xmin=-Inf, xmax=Inf, ymin=c(Inference_threshold_BF_low), ymax=c(Inference_threshold_BF_high)), alpha = 0.2, fill=c("grey80"))+
-      geom_rect(aes(xmin=-Inf, xmax=Inf, ymin=c(0), ymax=c(Inference_threshold_BF_low)), alpha = 0.2, fill=c("lightgreen"))+
-      geom_point(size = 3.5, shape = 21, fill = "white")+
-      scale_y_log10(limits = c(0.005,200), breaks=c(0.01, Inference_threshold_BF_low, 0.1, 0.33, 0, 3, 10, Inference_threshold_BF_high, 100))+
-      geom_hline(yintercept = c(Inference_threshold_BF_low, Inference_threshold_BF_high), linetype = "dashed")+
-      geom_text(aes(x=0.5, y=c(100, 1, 0.01), label=c("Supports M0", "Inconclusive", "Supports M1"), angle = 270))
-    
-    
-    
-    
-    ##################################################
-    #       Report of confirmatory analysis          #
-    ##################################################
-    
-    # number of erotic trials performed (without the last participant, whose data might
-    # be cut in half because of the interim stopping point)
-    numtrials_without_last_part = nrow(data_BF[data_BF[,"participant_ID"] != data_BF[nrow(data_BF),"participant_ID"],])
-    # number of missing trials/data points (minus the last participant, who might be cut in half)
-    missing_data_points = (length(unique(data_BF[data_BF[,"participant_ID"] != data_BF[nrow(data_BF),"participant_ID"], "participant_ID"])) * trial_size_per_participant) - numtrials_without_last_part 
-    
-    
-    general_text = paste("The study stopped at ", total_N, " erotic trials gathered from a total of ",
-                         sample_size_participants, " participants.", " There has been ", missing_data_points, " (", round(missing_data_points/total_N*100,2),"%) missing data points due to unfinished sessions.", 
-                         " We observed a total of ", round(mean(sides_match), 4)*100, "% successful guesses within ",
-                         total_N, " erotic trials (99.5% CI = ", proportion_995CI[1]*100, "%", ", ", proportion_995CI[2]*100, "%", 
-                         "; posterior mode = ", hdi_result[1]*100, "%", ", posterior 90% HDI = ", HDI_lb*100, "%", ", ",
-                         HDI_ub*100, "%", ").", sep = "")
-    
-    robustness_text = if(Robust == "robust"){paste(" The results proved to be robust to different statistical approaches, increasing our confidence in our inference.")} else if(Robust == "not robust"){
-    paste(" However, the results did not prove to be robust to different statistical approaches.")}
-
-    print(plot)
-  })
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  output$plot2 <- renderPlot({
-    invalidateLater(600000)
-    
-    ######################################################################
-    #                                                                    #
-    #                         Data management                            #
-    #                                                                    #
-    ######################################################################
-    
-    # get up to date date from github
-    pilot_data_pre <- read.csv("https://raw.githubusercontent.com/gy0p4k/transparent-psi-results/master/results.csv")
-    
-    # only read pilot sessions
-    # pilot sessions are marked with session_type = "pilot" and they were all collected in the lab with the laboratory_ID_code = "lab_ELTE_01"
-    lab_ID <- "lab_ELTE_01"
-    pilot_data <- pilot_data_pre[pilot_data_pre[,"session_type"] == "pilot" & pilot_data_pre[,"laboratory_ID_code"] == "lab_ELTE_01", ]
-    
-    
-    # Number of participants tested in the pilot test
-    sample_size_participants = length(unique(pilot_data[, "participant_ID"]))
-    
-    
-    pilot_data[, "trial_number"] = as.numeric(pilot_data[, "trial_number"])
-    
-    #extract data from erotic trials 
-    data_BF = pilot_data[!is.na(pilot_data[, "trial_number"]) & pilot_data[, "reward_type"] == "erotic", ]
-    
-    data_BF[,"participant_ID"] = droplevels(data_BF[,"participant_ID"])
-    
-    
-    ######################################################################
-    #                                                                    #
-    #                          Data analysis                             #
-    #                                                                    #
-    ######################################################################
-    
-    
-    ######################################################################
-    #                       Primary confirmatory test                    #
-    ######################################################################
-    
-    #================================================================#
-    #                Calculate number of successes                   #
-    #================================================================#
-    
-    # number of successes and total N of trials
-    sides_match = data_BF[,"guessed_side"] == data_BF[,"target_side"]
-    successes = sum(sides_match)
-    total_N = nrow(data_BF)
-    
-    
-    #================================================================#
-    #        Calculating Bayes factors using different priors        #
-    #================================================================#
-    
-    ### Replication Bayes factor, with the Bem 2011 experiment 1 results providing the prior information
-    
-    BF_replication <- BF01_beta(y = successes, N = total_N, y_prior = y_prior, N_prior = N_prior, interval = c(0.5,1), null_prob = M0_prob) #numbers higher than 1 support the null
-    
-    
-    ### Bayes factor with uniform prior
-    # using a non-informative flat prior distribution with alpha = 1 and beta = 1
-    
-    BF_uniform <- BF01_beta(y = successes, N = total_N, y_prior = 0, N_prior = 0, interval = c(0.5,1), null_prob = M0_prob) #numbers higher than 1 support the null
-    
-    
-    ### Bayes factor with BUJ prior
-    # the BUJ prior is calculated from Bem's paper where the prior distribution is defined as a
-    # normal distribution with a mean at 0 and 90th percentele is at medium effect size d = 0.5 
-    # (we asume that this is one-tailed). Source: Bem, D. J., Utts, J., & Johnson, W. O. (2011). 
-    # Must psychologists change the way they analyze their data? Journal of Personality and Social Psychology, 101(4), 716-719.
-    # We simulate this in this binomial framework with a one-tailed beta distribution with alpha = 7 and beta = 7.
-    # This distribution has 90% of its probability mass under p = 0.712, which we determined 
-    # to be equivalent to d = 0.5 medium effect size. We used the formula to convert d to log odds ratio logodds = d*pi/sqrt(3), 
-    # found here: Borenstein, M., Hedges, L. V., Higgins, J. P. T., & Rothstein, H. R. (2009). 
-    # Converting Among Effect Sizes. In Introduction to Meta-Analysis (pp. 45-49): John Wiley & Sons, Ltd.
-    # Then, log odds ratio vas converted to probability using the formula: p = exp(x)/(1+exp(x))
-    # The final equation: exp(d*pi/sqrt(3))/(1+exp(d*pi/sqrt(3)))
-    
-    BF_BUJ <- BF01_beta(y = successes, N = total_N, y_prior = 6, N_prior = 12, interval = c(0.5,1), null_prob = M0_prob) #numbers higher than 1 support the null
-    
-    
-    #================================================================#
-    #                    Main analysis inference                     #
-    #================================================================#
-    
-    # determine inference (supported model) based on the Bayes factors calculated above  
-    if(Inference_threshold_BF_low >= max(c(BF_replication, BF_uniform, BF_BUJ))) {
-      inference_BF = "M1"
-      break} else if(Inference_threshold_BF_high <= min(c(BF_replication, BF_uniform, BF_BUJ))) {
-        inference_BF = "M0"
-        break} else {inference_BF = "Inconclusive"}
-    
-    
-    ##################################################
-    #                 Robustness tests               #
-    ##################################################
-    
-    #================================================================#
-    #               Robustness test of BF results with NHST          #
-    #================================================================#
-    
-    # robustness of BF results is tested with NHST proportion tests
-    # here we perform both an equality test and an equivalence test to draw statistical inference
-    
-    
-    # equality test
-    equality_test_p = prop.test(x = successes, n = total_N, p = M0_prob, alternative = "greater")$p.value
-    
-    # equivalence test
-    equivalence_test_p = prop.test(x = successes, n = total_N,
-                                   p = M0_prob+minimum_effect_threshold_NHST, 
-                                   alternative = "less")$p.value
-    
-    # descritives of the frequentist estimate
-    pbar = successes/total_N
-    SE = sqrt(pbar * (1-pbar)/total_N)
-    E = qnorm(.9975) * SE
-    proportion_995CI = round(pbar + c(-E , E), 3)
-    
-    
-    
-    # making inference decision
-    if((Inference_threshold_robustness_NHST > equality_test_p) & 
-       (Inference_threshold_robustness_NHST <= equivalence_test_p)){
-      inference_robustness_NHST = "M1"} else if((Inference_threshold_robustness_NHST > equivalence_test_p) & 
-                                                (Inference_threshold_robustness_NHST <= equality_test_p)){
-        inference_robustness_NHST = "M0" 
-      } else {inference_robustness_NHST = "Inconclusive"}
-    
-    
-    #=======================================================================#
-    #   Robustness test of BF results with Bayesian parameter estimation    #
-    #=======================================================================#
-    
-    # robustness of BF results is tested by calculating HDI of the posteriro distribution and checking its relation to
-    # the region of practical equivalence (ROPE), promoted in Kruschke, J. K., & Liddell, T. M. 
-    # (2017). The Bayesian New Statistics: Hypothesis testing, estimation, meta-analysis, and power 
-    # analysis from a Bayesian perspective. Psychonomic Bulletin & Review, 1-29. 
-    
-    # calculate posterior distribution using beta distribution
-    prior_alpha = y_prior + 1
-    prior_beta = N_prior-y_prior+1
-    
-    posterior_alpha = prior_alpha + successes
-    posterior_beta = prior_beta + total_N - successes
-    
-    scale = seq(0, 1, length = 1001)
-    posterior_density = dbeta(scale, posterior_alpha, posterior_beta)
-    
-    # calculate HDI for the posterior distribution
-    # (here we calculate the upper and lower bound of the 90% of the probability mass
-    # because we use a one-tailed test. This means that the total probability mass below
-    # the upper bound of the 90% HDI will be 95%)
-    hdi_result = mode_HDI(scale = scale, density = posterior_density, crit_width = 1-Inference_threshold_robustness_Bayes_Par_Est*2, n_samples = 1e6)
-    
-    # parameters for decision making
-    HDI_lb = hdi_result[2]
-    HDI_ub = hdi_result[3]
-    
-    # making inference decision
-    ROPE = M0_prob+minimum_effect_threshold_Bayes_Par_Est
-    if(HDI_lb >= ROPE){inference_robustness_Bayes_Par_Est = "M1"
-    } else if(HDI_ub <= ROPE){inference_robustness_Bayes_Par_Est = "M0"
-    } else {inference_robustness_Bayes_Par_Est = "Inconclusive"}
-    
-    
-    #=======================================================================#
-    #      Determine final inference of all robustness tests combined       #
-    #=======================================================================#
-    
-    # the main analysis inference is only robust if all robustness tests came to the same inference as the main test
-    inferences = c(inference_robustness_NHST, inference_robustness_Bayes_Par_Est)
-    inference_robustness = if(all(inferences == inferences[1])){inferences[1]} else {"mixed"}
-    
-    Robust = if(inference_BF == inference_robustness){"robust"} else {"not robust"}
-    
-    
-    ######################################################################
-    #                                                                    #
-    #                   Interpretation and visualization                 #
-    #                                                                    #
-    ######################################################################
-    
-    
-    # visualize results
-    # ALL THREE BF values need to cross the threshold for the interpretation to be accepted
-    
-    BF_results_for_plotting = cbind(as.data.frame(c(BF_replication, BF_uniform, BF_BUJ)), c("BF_replication", "BF_uniform", "BF_BUJ"))
-    names(BF_results_for_plotting) = c("Bayes_factor_01", "BF_type")
-    
-    plot <- ggplot(BF_results_for_plotting, aes(y = Bayes_factor_01, x = BF_type))+
-      geom_point()+
-      geom_rect(aes(xmin=-Inf, xmax=Inf, ymin=c(Inference_threshold_BF_high), ymax=c(Inf)), alpha = 0.2, fill=c("pink"))+
-      geom_rect(aes(xmin=-Inf, xmax=Inf, ymin=c(Inference_threshold_BF_low), ymax=c(Inference_threshold_BF_high)), alpha = 0.2, fill=c("grey80"))+
-      geom_rect(aes(xmin=-Inf, xmax=Inf, ymin=c(0), ymax=c(Inference_threshold_BF_low)), alpha = 0.2, fill=c("lightgreen"))+
-      geom_point(size = 3.5, shape = 21, fill = "white")+
-      scale_y_log10(limits = c(0.005,200), breaks=c(0.01, Inference_threshold_BF_low, 0.1, 0.33, 0, 3, 10, Inference_threshold_BF_high, 100))+
-      geom_hline(yintercept = c(Inference_threshold_BF_low, Inference_threshold_BF_high), linetype = "dashed")+
-      geom_text(aes(x=0.5, y=c(100, 1, 0.01), label=c("Supports M0", "Inconclusive", "Supports M1"), angle = 270))
-    
-    
-    
-    
-    ##################################################
-    #       Report of confirmatory analysis          #
-    ##################################################
-    
-    # number of erotic trials performed (without the last participant, whose data might
-    # be cut in half because of the interim stopping point)
-    numtrials_without_last_part = nrow(data_BF[data_BF[,"participant_ID"] != data_BF[nrow(data_BF),"participant_ID"],])
-    # number of missing trials/data points (minus the last participant, who might be cut in half)
-    missing_data_points = (length(unique(data_BF[data_BF[,"participant_ID"] != data_BF[nrow(data_BF),"participant_ID"], "participant_ID"])) * trial_size_per_participant) - numtrials_without_last_part 
-    
-    
-    general_text = paste("The study stopped at ", total_N, " erotic trials gathered from a total of ",
-                         sample_size_participants, " participants.", " There has been ", missing_data_points, " (", round(missing_data_points/total_N*100,2),"%) missing data points due to unfinished sessions.", 
-                         " We observed a total of ", round(mean(sides_match), 4)*100, "% successful guesses within ",
-                         total_N, " erotic trials (99.5% CI = ", proportion_995CI[1]*100, "%", ", ", proportion_995CI[2]*100, "%", 
-                         "; posterior mode = ", hdi_result[1]*100, "%", ", posterior 90% HDI = ", HDI_lb*100, "%", ", ",
-                         HDI_ub*100, "%", ").", sep = "")
     
     robustness_text = if(Robust == "robust"){paste(" The results proved to be robust to different statistical approaches, increasing our confidence in our inference.")} else if(Robust == "not robust"){
       paste(" However, the results did not prove to be robust to different statistical approaches.")}
     
     
+    stopping_text = paste("None of the stopping rules have been triggered yet, so data collection is still in progress. The next crucial test will be at reaching ", 
+                              next_crucial_test_at, " erotic trials.", sep = "")    
     
-    # plot results of the Bayesian parameter estimation used as a robustness test
-    plot(scale, posterior_density, type="l", lty=1, xlab="x value", xlim = c(0.45, 0.55),
-         ylab="Density")
-    abline(v=c(M0_prob, ROPE), lty = c(1, 2))
     
-    density_table = as.data.frame(cbind(scale, posterior_density))
-    
-    height_lim_lb = density_table[density_table[, "scale"] == HDI_lb, "posterior_density"]
-    height_lim_ub = density_table[density_table[, "scale"] == HDI_ub, "posterior_density"]
-    
-    clip(0,1,-10,height_lim_lb)
-    abline(v=HDI_lb, lty = 3)
-    clip(0,1,-10,height_lim_ub)
-    abline(v=HDI_ub, lty = 3)
-  })
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  output$plot3 <- renderPlot({
-    invalidateLater(600000)
-    
-    
-    ######################################################################
-    #                                                                    #
-    #                         Data management                            #
-    #                                                                    #
-    ######################################################################
-    
-    # get up to date date from github
-    pilot_data_pre <- read.csv("https://raw.githubusercontent.com/gy0p4k/transparent-psi-results/master/results.csv")
-    
-    # only read pilot sessions
-    # pilot sessions are marked with session_type = "pilot" and they were all collected in the lab with the laboratory_ID_code = "lab_ELTE_01"
-    lab_ID <- "lab_ELTE_01"
-    pilot_data <- pilot_data_pre[pilot_data_pre[,"session_type"] == "pilot" & pilot_data_pre[,"laboratory_ID_code"] == "lab_ELTE_01", ]
-    
-    
-    # Number of participants tested in the pilot test
-    sample_size_participants = length(unique(pilot_data[, "participant_ID"]))
-    
-    
-    pilot_data[, "trial_number"] = as.numeric(pilot_data[, "trial_number"])
-    
-    #extract data from erotic trials 
-    data_BF = pilot_data[!is.na(pilot_data[, "trial_number"]) & pilot_data[, "reward_type"] == "erotic", ]
-    
-    data_BF[,"participant_ID"] = droplevels(data_BF[,"participant_ID"])
-    
-    
-    ######################################################################
-    #                                                                    #
-    #                          Data analysis                             #
-    #                                                                    #
-    ######################################################################
-    
-    
-    ######################################################################
-    #                       Primary confirmatory test                    #
-    ######################################################################
-    
-    #================================================================#
-    #                Calculate number of successes                   #
-    #================================================================#
-    
-    # number of successes and total N of trials
-    sides_match = data_BF[,"guessed_side"] == data_BF[,"target_side"]
-    successes = sum(sides_match)
-    total_N = nrow(data_BF)
-    
-    
-    #================================================================#
-    #        Calculating Bayes factors using different priors        #
-    #================================================================#
-    
-    ### Replication Bayes factor, with the Bem 2011 experiment 1 results providing the prior information
-    
-    BF_replication <- BF01_beta(y = successes, N = total_N, y_prior = y_prior, N_prior = N_prior, interval = c(0.5,1), null_prob = M0_prob) #numbers higher than 1 support the null
-    
-    
-    ### Bayes factor with uniform prior
-    # using a non-informative flat prior distribution with alpha = 1 and beta = 1
-    
-    BF_uniform <- BF01_beta(y = successes, N = total_N, y_prior = 0, N_prior = 0, interval = c(0.5,1), null_prob = M0_prob) #numbers higher than 1 support the null
-    
-    
-    ### Bayes factor with BUJ prior
-    # the BUJ prior is calculated from Bem's paper where the prior distribution is defined as a
-    # normal distribution with a mean at 0 and 90th percentele is at medium effect size d = 0.5 
-    # (we asume that this is one-tailed). Source: Bem, D. J., Utts, J., & Johnson, W. O. (2011). 
-    # Must psychologists change the way they analyze their data? Journal of Personality and Social Psychology, 101(4), 716-719.
-    # We simulate this in this binomial framework with a one-tailed beta distribution with alpha = 7 and beta = 7.
-    # This distribution has 90% of its probability mass under p = 0.712, which we determined 
-    # to be equivalent to d = 0.5 medium effect size. We used the formula to convert d to log odds ratio logodds = d*pi/sqrt(3), 
-    # found here: Borenstein, M., Hedges, L. V., Higgins, J. P. T., & Rothstein, H. R. (2009). 
-    # Converting Among Effect Sizes. In Introduction to Meta-Analysis (pp. 45-49): John Wiley & Sons, Ltd.
-    # Then, log odds ratio vas converted to probability using the formula: p = exp(x)/(1+exp(x))
-    # The final equation: exp(d*pi/sqrt(3))/(1+exp(d*pi/sqrt(3)))
-    
-    BF_BUJ <- BF01_beta(y = successes, N = total_N, y_prior = 6, N_prior = 12, interval = c(0.5,1), null_prob = M0_prob) #numbers higher than 1 support the null
-    
-    
-    #================================================================#
-    #                    Main analysis inference                     #
-    #================================================================#
-    
-    # determine inference (supported model) based on the Bayes factors calculated above  
-    if(Inference_threshold_BF_low >= max(c(BF_replication, BF_uniform, BF_BUJ))) {
-      inference_BF = "M1"
-      break} else if(Inference_threshold_BF_high <= min(c(BF_replication, BF_uniform, BF_BUJ))) {
-        inference_BF = "M0"
-        break} else {inference_BF = "Inconclusive"}
-    
-    
-    ##################################################
-    #                 Robustness tests               #
-    ##################################################
-    
-    #================================================================#
-    #               Robustness test of BF results with NHST          #
-    #================================================================#
-    
-    # robustness of BF results is tested with NHST proportion tests
-    # here we perform both an equality test and an equivalence test to draw statistical inference
-    
-    
-    # equality test
-    equality_test_p = prop.test(x = successes, n = total_N, p = M0_prob, alternative = "greater")$p.value
-    
-    # equivalence test
-    equivalence_test_p = prop.test(x = successes, n = total_N,
-                                   p = M0_prob+minimum_effect_threshold_NHST, 
-                                   alternative = "less")$p.value
-    
-    # descritives of the frequentist estimate
-    pbar = successes/total_N
-    SE = sqrt(pbar * (1-pbar)/total_N)
-    E = qnorm(.9975) * SE
-    proportion_995CI = round(pbar + c(-E , E), 3)
-    
-    
-    
-    # making inference decision
-    if((Inference_threshold_robustness_NHST > equality_test_p) & 
-       (Inference_threshold_robustness_NHST <= equivalence_test_p)){
-      inference_robustness_NHST = "M1"} else if((Inference_threshold_robustness_NHST > equivalence_test_p) & 
-                                                (Inference_threshold_robustness_NHST <= equality_test_p)){
-        inference_robustness_NHST = "M0" 
-      } else {inference_robustness_NHST = "Inconclusive"}
-    
-    
-    #=======================================================================#
-    #   Robustness test of BF results with Bayesian parameter estimation    #
-    #=======================================================================#
-    
-    # robustness of BF results is tested by calculating HDI of the posteriro distribution and checking its relation to
-    # the region of practical equivalence (ROPE), promoted in Kruschke, J. K., & Liddell, T. M. 
-    # (2017). The Bayesian New Statistics: Hypothesis testing, estimation, meta-analysis, and power 
-    # analysis from a Bayesian perspective. Psychonomic Bulletin & Review, 1-29. 
-    
-    # calculate posterior distribution using beta distribution
-    prior_alpha = y_prior + 1
-    prior_beta = N_prior-y_prior+1
-    
-    posterior_alpha = prior_alpha + successes
-    posterior_beta = prior_beta + total_N - successes
-    
-    scale = seq(0, 1, length = 1001)
-    posterior_density = dbeta(scale, posterior_alpha, posterior_beta)
-    
-    # calculate HDI for the posterior distribution
-    # (here we calculate the upper and lower bound of the 90% of the probability mass
-    # because we use a one-tailed test. This means that the total probability mass below
-    # the upper bound of the 90% HDI will be 95%)
-    hdi_result = mode_HDI(scale = scale, density = posterior_density, crit_width = 1-Inference_threshold_robustness_Bayes_Par_Est*2, n_samples = 1e6)
-    
-    # parameters for decision making
-    HDI_lb = hdi_result[2]
-    HDI_ub = hdi_result[3]
-    
-    # making inference decision
-    ROPE = M0_prob+minimum_effect_threshold_Bayes_Par_Est
-    if(HDI_lb >= ROPE){inference_robustness_Bayes_Par_Est = "M1"
-    } else if(HDI_ub <= ROPE){inference_robustness_Bayes_Par_Est = "M0"
-    } else {inference_robustness_Bayes_Par_Est = "Inconclusive"}
-    
-    
-    #=======================================================================#
-    #      Determine final inference of all robustness tests combined       #
-    #=======================================================================#
-    
-    # the main analysis inference is only robust if all robustness tests came to the same inference as the main test
-    inferences = c(inference_robustness_NHST, inference_robustness_Bayes_Par_Est)
-    inference_robustness = if(all(inferences == inferences[1])){inferences[1]} else {"mixed"}
-    
-    Robust = if(inference_BF == inference_robustness){"robust"} else {"not robust"}
-    
-    
-    ######################################################################
-    #                                                                    #
-    #                   Interpretation and visualization                 #
-    #                                                                    #
-    ######################################################################
-    
-    
-    # visualize results
-    # ALL THREE BF values need to cross the threshold for the interpretation to be accepted
-    
-    BF_results_for_plotting = cbind(as.data.frame(c(BF_replication, BF_uniform, BF_BUJ)), c("BF_replication", "BF_uniform", "BF_BUJ"))
-    names(BF_results_for_plotting) = c("Bayes_factor_01", "BF_type")
-    
-    plot <- ggplot(BF_results_for_plotting, aes(y = Bayes_factor_01, x = BF_type))+
-      geom_point()+
-      geom_rect(aes(xmin=-Inf, xmax=Inf, ymin=c(Inference_threshold_BF_high), ymax=c(Inf)), alpha = 0.2, fill=c("pink"))+
-      geom_rect(aes(xmin=-Inf, xmax=Inf, ymin=c(Inference_threshold_BF_low), ymax=c(Inference_threshold_BF_high)), alpha = 0.2, fill=c("grey80"))+
-      geom_rect(aes(xmin=-Inf, xmax=Inf, ymin=c(0), ymax=c(Inference_threshold_BF_low)), alpha = 0.2, fill=c("lightgreen"))+
-      geom_point(size = 3.5, shape = 21, fill = "white")+
-      scale_y_log10(limits = c(0.005,200), breaks=c(0.01, Inference_threshold_BF_low, 0.1, 0.33, 0, 3, 10, Inference_threshold_BF_high, 100))+
-      geom_hline(yintercept = c(Inference_threshold_BF_low, Inference_threshold_BF_high), linetype = "dashed")+
-      geom_text(aes(x=0.5, y=c(100, 1, 0.01), label=c("Supports M0", "Inconclusive", "Supports M1"), angle = 270))
-    
-    
-    
-    
-    ##################################################
-    #       Report of confirmatory analysis          #
-    ##################################################
-    
-    # number of erotic trials performed (without the last participant, whose data might
-    # be cut in half because of the interim stopping point)
-    numtrials_without_last_part = nrow(data_BF[data_BF[,"participant_ID"] != data_BF[nrow(data_BF),"participant_ID"],])
-    # number of missing trials/data points (minus the last participant, who might be cut in half)
-    missing_data_points = (length(unique(data_BF[data_BF[,"participant_ID"] != data_BF[nrow(data_BF),"participant_ID"], "participant_ID"])) * trial_size_per_participant) - numtrials_without_last_part 
-    
-    
-    general_text = paste("The study stopped at ", total_N, " erotic trials gathered from a total of ",
-                         sample_size_participants, " participants.", " There has been ", missing_data_points, " (", round(missing_data_points/total_N*100,2),"%) missing data points due to unfinished sessions.", 
-                         " We observed a total of ", round(mean(sides_match), 4)*100, "% successful guesses within ",
-                         total_N, " erotic trials (99.5% CI = ", proportion_995CI[1]*100, "%", ", ", proportion_995CI[2]*100, "%", 
-                         "; posterior mode = ", hdi_result[1]*100, "%", ", posterior 90% HDI = ", HDI_lb*100, "%", ", ",
-                         HDI_ub*100, "%", ").", sep = "")
-    
-    robustness_text = if(Robust == "robust"){paste(" The results proved to be robust to different statistical approaches, increasing our confidence in our inference.")} else if(Robust == "not robust"){
-      paste(" However, the results did not prove to be robust to different statistical approaches.")}
-    
-    
-    
+    final_text = paste(general_text_first_part, general_text_second_half, robustness_text, stopping_text, sep = "")
+
+                    
+
     
     
     ######################################################################
@@ -1468,8 +656,8 @@ shinyServer(function(input, output){
     #=======================================================================#
     
     # calculate proportion of successful guesses for each participant in the observed data
-    data_BF_split = split(data_BF, f = data_BF[,"participant_ID"])
-    success_proportions_empirical = sapply(data_BF_split, function(x) mean(x[,"guessed_side"] == x[,"target_side"]))
+    data_BF_split_by_participants = split(data_BF, f = data_BF[,"participant_ID"])
+    success_proportions_empirical = sapply(data_BF_split_by_participants, function(x) mean(x[,"guessed_side"] == x[,"target_side"]))
     
     
     # samples 1,000,000 participants from a population with H0 success rate
@@ -1515,7 +703,169 @@ shinyServer(function(input, output){
     histogram_plot_data = cbind(histogram_plot_data, factor(rep(possible_success_rates_char, 2)))
     names(histogram_plot_data) = c("proportion", "group", "success")
     
-    figure_1 =  ggplot(histogram_plot_data, aes(y = proportion, x = success, group = group))+
+    
+    
+    # earth mover's distance
+    emd = emd2d(success_rates_theoretical_prop,success_rates_empirical_prop)
+
+    
+    values$df = df
+    
+    values$inference_BF = inference_BF
+    
+    values$BF_replication = BF_replication
+    values$BF_uniform = BF_uniform
+    values$BF_BUJ = BF_BUJ
+    
+    values$final_text = final_text
+    
+    values$BF_results_for_plotting = BF_results_for_plotting
+    
+    values$scale = scale
+    values$posterior_density = posterior_density
+    values$HDI_lb = HDI_lb
+    values$HDI_ub = HDI_ub
+    
+    values$emd = emd
+    
+    values$histogram_plot_data = histogram_plot_data
+    
+  })
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  output$text_refresh1 <- renderText({
+    invalidateLater(refresh_time)
+    
+    paste("The data on this page was last refreshed at:  ", Sys.time(), "  (time zone:  ", Sys.timezone(), " ).", sep = "")
+
+  })
+  
+  output$text_refresh2 <- renderText({
+    invalidateLater(refresh_time)
+    
+    paste("The data on this page was last refreshed at:  ", Sys.time(), "  (time zone:  ", Sys.timezone(), " ).", sep = "")
+    
+  })
+  
+
+  output$text_refresh3 <- renderText({
+    invalidateLater(refresh_time)
+    
+    paste("The data on this page was last refreshed at:  ", Sys.time(), "  (time zone:  ", Sys.timezone(), " ).", sep = "")
+    
+  })
+  
+  
+  output$text_refresh4 <- renderText({
+    invalidateLater(refresh_time)
+    
+    paste("The data on this page was last refreshed at:  ", Sys.time(), "  (time zone:  ", Sys.timezone(), " ).", sep = "")
+    
+  })
+  
+  
+  output$text_refresh5 <- renderText({
+    invalidateLater(refresh_time)
+    
+    paste("The data on this page was last refreshed at:  ", Sys.time(), "  (time zone:  ", Sys.timezone(), " ).", sep = "")
+    
+  })
+  
+  
+  
+  
+  
+  output$text_summary <- renderText({
+     
+    values$final_text
+    
+  })
+  
+  
+  
+  
+  
+  
+  output$plot1a <- renderPlot({
+
+    plot_main_conf_anal <- ggplot(values$BF_results_for_plotting, aes(y = Bayes_factor_01, x = BF_type))+
+      geom_point()+
+      geom_rect(aes(xmin=-Inf, xmax=Inf, ymin=c(Inference_threshold_BF_high), ymax=c(Inf)), alpha = 0.2, fill=c("pink"))+
+      geom_rect(aes(xmin=-Inf, xmax=Inf, ymin=c(Inference_threshold_BF_low), ymax=c(Inference_threshold_BF_high)), alpha = 0.2, fill=c("grey80"))+
+      geom_rect(aes(xmin=-Inf, xmax=Inf, ymin=c(0), ymax=c(Inference_threshold_BF_low)), alpha = 0.2, fill=c("lightgreen"))+
+      geom_point(size = 3.5, shape = 21, fill = "white")+
+      scale_y_log10(limits = c(0.005,200), breaks=c(0.01, Inference_threshold_BF_low, 0.1, 0.33, 0, 3, 10, Inference_threshold_BF_high, 100))+
+      geom_hline(yintercept = c(Inference_threshold_BF_low, Inference_threshold_BF_high), linetype = "dashed")+
+      geom_text(aes(x=0.5, y=c(100, 1, 0.01), label=c("Supports M0", "Inconclusive", "Supports M1"), angle = 270))
+ 
+    print(plot_main_conf_anal)
+  })
+  
+  
+  
+  
+  
+  
+  
+  
+  output$plot1b <- renderPlot({
+
+    plot_main_conf_anal <- ggplot(values$BF_results_for_plotting, aes(y = Bayes_factor_01, x = BF_type))+
+      geom_point()+
+      geom_rect(aes(xmin=-Inf, xmax=Inf, ymin=c(Inference_threshold_BF_high), ymax=c(Inf)), alpha = 0.2, fill=c("pink"))+
+      geom_rect(aes(xmin=-Inf, xmax=Inf, ymin=c(Inference_threshold_BF_low), ymax=c(Inference_threshold_BF_high)), alpha = 0.2, fill=c("grey80"))+
+      geom_rect(aes(xmin=-Inf, xmax=Inf, ymin=c(0), ymax=c(Inference_threshold_BF_low)), alpha = 0.2, fill=c("lightgreen"))+
+      geom_point(size = 3.5, shape = 21, fill = "white")+
+      scale_y_log10(limits = c(0.005,200), breaks=c(0.01, Inference_threshold_BF_low, 0.1, 0.33, 0, 3, 10, Inference_threshold_BF_high, 100))+
+      geom_hline(yintercept = c(Inference_threshold_BF_low, Inference_threshold_BF_high), linetype = "dashed")+
+      geom_text(aes(x=0.5, y=c(100, 1, 0.01), label=c("Supports M0", "Inconclusive", "Supports M1"), angle = 270))
+    
+
+    print(plot_main_conf_anal)
+  })
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  output$plot2 <- renderPlot({
+   
+    # plot results of the Bayesian parameter estimation used as a robustness test
+    plot(values$scale, values$posterior_density, type="l", lty=1, xlab="x value", xlim = c(0.45, 0.55),
+         ylab="Density")
+    abline(v=c(M0_prob, ROPE), lty = c(1, 2))
+    
+    density_table = as.data.frame(cbind(values$scale, values$posterior_density))
+    names(density_table) = c("scale", "posterior_density")
+    
+    height_lim_lb = density_table[density_table[, "scale"] == values$HDI_lb, "posterior_density"]
+    height_lim_ub = density_table[density_table[, "scale"] == values$HDI_ub, "posterior_density"]
+    
+    clip(0,1,-10,height_lim_lb)
+    abline(v=values$HDI_lb, lty = 3)
+    clip(0,1,-10,height_lim_ub)
+    abline(v=values$HDI_ub, lty = 3)
+  })
+  
+  
+  
+  
+
+  
+  output$plot3 <- renderPlot({
+    
+    figure_1 =  ggplot(values$histogram_plot_data, aes(y = proportion, x = success, group = group))+
       geom_bar(aes(fill = group), alpha = 0.5, stat = "identity", position = "identity")+
       scale_fill_manual(values = c("darkgrey", "black")) +
       xlab("Successful guess rate") +
@@ -1530,14 +880,38 @@ shinyServer(function(input, output){
             axis.text.y = element_text(face = "bold", color = "black", size = 12),
             axis.title = element_text(size = 16))
     
-    
-    # earth mover's distance
-    emd = emd2d(success_rates_theoretical_prop,success_rates_empirical_prop)
-    
-    
     print(figure_1)
   })
   
  
+  
+  
+ 
+  
+  
+  
+  
+  
+  output$text_refresh_test <- renderText({
+    invalidateLater(refresh_time)
+    
+    paste("The data on this page was last refreshed at:  ", Sys.time(), "  (time zone:  ", Sys.timezone(), " ).", sep = "")
+    
+  })
+  
+  
+  
+  
+  output$plot_test <- renderPlot({
+    plot(values$df, ylim = c(0,10))
+  })
+  
+
+  
+  
+  
+  
+  
+  
   
 })
