@@ -1,7 +1,6 @@
 library(shiny)
 library(shinydashboard)
-library(knitr)
-library(rmarkdown)
+
 
 
 
@@ -1539,25 +1538,6 @@ shinyServer(function(input, output){
     print(figure_1)
   })
   
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  output$markdown <- renderUI({
-    HTML(markdown::markdownToHTML(knit('TPP_Manuscript_test.Rmd', quiet = TRUE)))
-  })
-  
-  
-  
-  
+ 
   
 })
