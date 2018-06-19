@@ -9,6 +9,7 @@ shinyUI(
       sidebarMenu(
         menuItem("Welcome", tabName = "tab_welcome"),
         menuItem("Results summary" , tabName = "res_summary"),
+        menuSubItem("Test_page", tabName = "test"),
         menuSubItem("Main Confirmatory Analysis", tabName = "conf_analysis"),
         menuSubItem("Robustness Analysis", tabName = "robust_analysis"),
         menuSubItem("Exploratory analysis", tabName = "explor_analysis"),
@@ -55,6 +56,23 @@ shinyUI(
                   textOutput("text_refresh2")
                 )
                 
+        ),
+        
+        
+        tabItem(tabName = "test",
+                
+                fluidRow(
+                  h1("analisis")
+                ),
+                fluidRow(
+                  box(plotOutput("plot_test"))
+                ),
+                fluidRow(
+                  p("To support any model, all three Bayes Factor values need to pass the threshold")
+                ),
+                fluidRow(
+                  textOutput("text_refresh_test")
+                )
         ),
         
         
