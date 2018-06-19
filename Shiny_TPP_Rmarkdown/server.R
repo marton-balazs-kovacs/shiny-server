@@ -1,5 +1,6 @@
 library(shiny)
-
+library(knitr)
+library(rmarkdown)
 
 shinyServer(function(input, output){
   output$markdown <- renderUI({
