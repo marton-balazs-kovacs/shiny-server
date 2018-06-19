@@ -108,6 +108,8 @@ shinyUI(
         
         tabItem(tabName = "rmarkdown_manuscript",
                 
+                helpText( a("Click Here view the Rmarkdown preprint", href="http://178.128.174.226:3838/TPP_follow_results_test/", target="_blank")
+                ),
                 fluidRow(
                   p("Loading the contents of this page may take a few seconds. Please, wait.")
                 ),
