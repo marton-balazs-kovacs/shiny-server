@@ -23,7 +23,6 @@ library(emdist) # to calcluate earth mover's distance (EMD)
 ######################################################################
 
 refresh_time = 2000
-crucial_test_refresh_time = 60000
 
 ######################################################################
 #                                                                    #
@@ -156,6 +155,13 @@ Inference_threshold_robustness_Bayes_Par_Est = 0.05
 
 ROPE = M0_prob+minimum_effect_threshold_Bayes_Par_Est
 
+### For the exploratory analysis
+# samples 1,000,000 participants from a population with H0 success rate
+# this is used for the stochastic dominance test as the null model
+# we call this the theoretical sample, because it approximates the theoretical null model
+sim_null_participant_num = 1000000
+success_proportions_theoretical <- rbinom(sim_null_participant_num, size = trial_size_per_participant, prob=M0_prob)/trial_size_per_participant
+
 
 ######################################################################
 #                                                                    #
@@ -171,9 +177,7 @@ ROPE = M0_prob+minimum_effect_threshold_Bayes_Par_Est
 shinyServer(function(input, output){
 
   
-  stopping_info <- reactiveValues()
-  
-    
+  # this object will store the data required for visualization
   values <- reactiveValues()
 
 
@@ -185,7 +189,7 @@ shinyServer(function(input, output){
   
   
   
-  
+  # this function does the calcuations again after each [refresh_time] milliseconds
   observe({
     
     invalidateLater(refresh_time)
@@ -406,6 +410,11 @@ shinyServer(function(input, output){
     #                                                                     #
     #######################################################################
     
+    
+    # set default values for data collection status
+    data_collection_status_at_latest_crucial_test = "running"
+      
+    
     if(!is.na(latest_crucial_test_at)){
       sides_match_at_latest_crucial_test = sides_match[1:latest_crucial_test_at]
       successes_at_latest_crucial_test = successes[1:latest_crucial_test_at]
@@ -440,7 +449,7 @@ shinyServer(function(input, output){
       
       
       #================================================================#
-      #                    Main analysis inference                     #
+      #                    Main analysis inference - Crucial test      #
       #================================================================#
       
       # determine inference (supported model) based on the Bayes factors calculated above  
@@ -455,11 +464,11 @@ shinyServer(function(input, output){
       
       
       ##################################################
-      #                 Robustness tests               #
+      #           Robustness tests - Crucial test      #
       ##################################################
       
       #================================================================#
-      #               Robustness test of BF results with NHST          #
+      #    Robustness test of BF results with NHST - Crucial test      #
       #================================================================#
       
       # robustness of BF results is tested with NHST proportion tests
@@ -491,9 +500,9 @@ shinyServer(function(input, output){
         } else {inference_robustness_NHST_at_latest_crucial_test = "Inconclusive"}
       
       
-      #=======================================================================#
-      #   Robustness test of BF results with Bayesian parameter estimation    #
-      #=======================================================================#
+      #====================================================================================#
+      #   Robustness test of BF results with Bayesian parameter estimation - Crucial test  #
+      #====================================================================================#
       
       # robustness of BF results is tested by calculating HDI of the posteriro distribution and checking its relation to
       # the region of practical equivalence (ROPE), promoted in Kruschke, J. K., & Liddell, T. M. 
@@ -526,9 +535,9 @@ shinyServer(function(input, output){
       } else {inference_robustness_Bayes_Par_Est_at_latest_crucial_test = "Inconclusive"}
       
       
-      #=======================================================================#
-      #      Determine final inference of all robustness tests combined       #
-      #=======================================================================#
+      #============================================================================#
+      # Determine final inference of all robustness tests combined - Crucial test  #
+      #============================================================================#
       
       # the main analysis inference is only robust if all robustness tests came to the same inference as the main test
       inferences_at_latest_crucial_test = c(inference_robustness_NHST_at_latest_crucial_test, inference_robustness_Bayes_Par_Est_at_latest_crucial_test)
@@ -629,8 +638,10 @@ shinyServer(function(input, output){
       paste(" However, the results did not prove to be robust to different statistical approaches.")}
     
     
-    stopping_text = paste("None of the stopping rules have been triggered yet, so data collection is still in progress. The next crucial test will be at reaching ", 
-                              next_crucial_test_at, " erotic trials.", sep = "")    
+    stopping_text = if(data_collection_status_at_latest_crucial_test == "running"){
+      paste("None of the stopping rules have been triggered yet, so data collection is still in progress. The next crucial test will be at reaching ", 
+            next_crucial_test_at, " erotic trials.", sep = "")    
+    } else if(data_collection_status_at_latest_crucial_test == "stopped"){"Data collection stopped because one of the stopping rules has been triggered."}
     
     
     final_text = paste(general_text_first_part, general_text_second_half, robustness_text, stopping_text, sep = "")
@@ -658,13 +669,6 @@ shinyServer(function(input, output){
     # calculate proportion of successful guesses for each participant in the observed data
     data_BF_split_by_participants = split(data_BF, f = data_BF[,"participant_ID"])
     success_proportions_empirical = sapply(data_BF_split_by_participants, function(x) mean(x[,"guessed_side"] == x[,"target_side"]))
-    
-    
-    # samples 1,000,000 participants from a population with H0 success rate
-    # this is used for the stochastic dominance test as the null model
-    # we call this the theoretical sample, because it approximates the theoretical null model
-    sim_null_participant_num = 1000000
-    success_proportions_theoretical <- rbinom(sim_null_participant_num, size = trial_size_per_participant, prob=M0_prob)/trial_size_per_participant
     
     # determine possible values of success rates
     possible_success_rates = 0
@@ -726,7 +730,7 @@ shinyServer(function(input, output){
     values$HDI_lb = HDI_lb
     values$HDI_ub = HDI_ub
     
-    values$emd = emd
+    values$emd = emd # this still needs to be integreted into the result visualization
     
     values$histogram_plot_data = histogram_plot_data
     
