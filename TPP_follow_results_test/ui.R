@@ -1,6 +1,7 @@
 library(shiny)
 library(shinydashboard)
 
+refresh_time = 2000
 
 shinyUI(
   dashboardPage(
@@ -31,7 +32,7 @@ shinyUI(
                   p("Use the menu items on the left to get the results of the different analyses")
                 ),
                 fluidRow(
-                  p("the data is refreshed every 10 minutes")
+                  textOutput("text_refresh_rate")
                 ),
                 fluidRow(
                   textOutput("text_refresh1")
@@ -62,10 +63,19 @@ shinyUI(
         tabItem(tabName = "test",
                 
                 fluidRow(
-                  h1("analisis")
+                  sliderInput("loop_slider", "Select trial number or press play", min=40, max=150, value=40, step = 10,
+                              animate = animationOptions(interval = refresh_time, loop = TRUE))
+                ),
+                
+                fluidRow(
+                  h1("analysis")
+                ),
+                
+                fluidRow(
+                  box(plotOutput("plot1_loop"))
                 ),
                 fluidRow(
-                  box(plotOutput("plot_test"))
+                  textOutput("text_loop")
                 ),
                 fluidRow(
                   p("To support any model, all three Bayes Factor values need to pass the threshold")
