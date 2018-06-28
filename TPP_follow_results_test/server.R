@@ -359,13 +359,14 @@ success_proportions_theoretical <- rbinom(sim_null_participant_num, size = trial
 
 
 
-shinyServer(function(input, output){
+shinyServer(function(input, output, session){
 
   
   # this object will store the data required for visualization
   values <- reactiveValues(
     # set default values for data collection status
-    data_collection_status_at_latest_crucial_test = "running"
+    data_collection_status_at_latest_crucial_test = "running",
+    i = 0
   )
 
   
@@ -489,11 +490,11 @@ shinyServer(function(input, output){
     
     
     # dataframe used for the visualization of main confirmatory analysis results
-    BF_results_for_plotting = cbind(as.data.frame(c(list_result_mainanalysis_current[["BF_replication"]], list_result_mainanalysis_current[["BF_uniform"]], list_result_mainanalysis_current[["BF_BUJ"]])), c("BF_replication", "BF_uniform", "BF_BUJ"))
-    names(BF_results_for_plotting) = c("Bayes_factor_01", "BF_type")
+    BF_results_for_plotting_current = cbind(as.data.frame(c(list_result_mainanalysis_current[["BF_replication"]], list_result_mainanalysis_current[["BF_uniform"]], list_result_mainanalysis_current[["BF_BUJ"]])), c("BF_replication", "BF_uniform", "BF_BUJ"))
+    names(BF_results_for_plotting_current) = c("Bayes_factor_01", "BF_type")
     
     
-    values$BF_results_for_plotting = BF_results_for_plotting
+    values$BF_results_for_plotting_current = BF_results_for_plotting_current
     
     
     
@@ -724,15 +725,97 @@ shinyServer(function(input, output){
   })
   
   
+  output$text_refresh_rate <- renderText({
+    
+    paste("the data is refreshed every ", refresh_time/1000, " seconds", sep = "")
+    
+  })
+
   
   
+
+  sliderValues <- reactiveValues(
+    
+    loop_N = 40
+    
+  )
+  
+  
+  observe({
+
+   updateSliderInput(session, "loop_slider", value = nrow(values$data_BF), max = nrow(values$data_BF))
+  })
+  
+  
+  
+  
+  
+  observe({
+    updateSliderInput(session, "loop_slider", value = nrow(values$data_BF), max = nrow(values$data_BF))
+    
+    
+      list_result_mainanalysis_loop = ConfirmatoryAnalysisFunction(data_BF = values$data_BF[1:(input$loop_slider),],
+                                                                   total_N = input$loop_slider,
+                                                                   trial_size_per_participant = trial_size_per_participant,
+                                                                   M0_prob = M0_prob,
+                                                                   when_to_check = when_to_check,
+                                                                   Inference_threshold_BF_high = Inference_threshold_BF_high,
+                                                                   Inference_threshold_BF_low = Inference_threshold_BF_low,
+                                                                   y_prior = y_prior,
+                                                                   N_prior = N_prior,
+                                                                   minimum_effect_threshold_NHST = minimum_effect_threshold_NHST,
+                                                                   Inference_threshold_robustness_NHST = Inference_threshold_robustness_NHST,
+                                                                   minimum_effect_threshold_Bayes_Par_Est = minimum_effect_threshold_Bayes_Par_Est,
+                                                                   Inference_threshold_robustness_Bayes_Par_Est = Inference_threshold_robustness_Bayes_Par_Est,
+                                                                   ROPE = ROPE,
+                                                                   scale = scale)
+      
+      
+      
+      
+      
+      values$sides_match_loop = list_result_mainanalysis_loop[["sides_match"]]
+      values$proportion_995CI_loop = list_result_mainanalysis_loop[["proportion_995CI"]]
+      values$hdi_result_loop = list_result_mainanalysis_loop[["hdi_result"]]
+      values$inference_BF_loop = list_result_mainanalysis_loop[["inference_BF"]]
+      values$BF_replication_loop = list_result_mainanalysis_loop[["BF_replication"]]
+      values$BF_uniform_loop = list_result_mainanalysis_loop[["BF_uniform"]]
+      values$BF_BUJ_loop = list_result_mainanalysis_loop[["BF_BUJ"]]
+      values$HDI_lb_loop = list_result_mainanalysis_loop[["HDI_lb"]]
+      values$HDI_ub_loop = list_result_mainanalysis_loop[["HDI_ub"]]
+      values$Robust_loop = list_result_mainanalysis_loop[["Robust"]]
+      values$posterior_density_loop = list_result_mainanalysis_loop[["posterior_density"]]
+      
+      
+      # dataframe used for the visualization of main confirmatory analysis results
+      BF_results_for_plotting_loop = cbind(as.data.frame(c(list_result_mainanalysis_loop[["BF_replication"]], list_result_mainanalysis_loop[["BF_uniform"]], list_result_mainanalysis_loop[["BF_BUJ"]])), c("BF_replication", "BF_uniform", "BF_BUJ"))
+      names(BF_results_for_plotting_loop) = c("Bayes_factor_01", "BF_type")
+      
+      
+      values$BF_results_for_plotting_loop = BF_results_for_plotting_loop
+      
+      
+      values$loop_N = input$loop_slider
+      
+  })
+  
+  
+  output$text_loop <- renderText({
+    
+    paste("Bayes Factor results after ", values$loop_N, " participants", sep = "")
+    
+  })
+
+  
+  
+
   
   
   output$plot1a <- renderPlot({
 
 
     
-    plot_main_conf_anal <- ggplot(values$BF_results_for_plotting, aes(y = Bayes_factor_01, x = BF_type))+
+    plot_main_conf_anal <- ggplot(values$BF_results_for_plotting_current, aes(y = Bayes_factor_01, x = BF_type))+
       geom_point()+
       geom_rect(aes(xmin=-Inf, xmax=Inf, ymin=c(Inference_threshold_BF_high), ymax=c(Inf)), alpha = 0.2, fill=c("pink"))+
       geom_rect(aes(xmin=-Inf, xmax=Inf, ymin=c(Inference_threshold_BF_low), ymax=c(Inference_threshold_BF_high)), alpha = 0.2, fill=c("grey80"))+
@@ -754,7 +837,7 @@ shinyServer(function(input, output){
   
   output$plot1b <- renderPlot({
 
-    plot_main_conf_anal <- ggplot(values$BF_results_for_plotting, aes(y = Bayes_factor_01, x = BF_type))+
+    plot_main_conf_anal <- ggplot(values$BF_results_for_plotting_current, aes(y = Bayes_factor_01, x = BF_type))+
       geom_point()+
       geom_rect(aes(xmin=-Inf, xmax=Inf, ymin=c(Inference_threshold_BF_high), ymax=c(Inf)), alpha = 0.2, fill=c("pink"))+
       geom_rect(aes(xmin=-Inf, xmax=Inf, ymin=c(Inference_threshold_BF_low), ymax=c(Inference_threshold_BF_high)), alpha = 0.2, fill=c("grey80"))+
@@ -771,6 +854,22 @@ shinyServer(function(input, output){
   
   
   
+  output$plot1_loop <- renderPlot({
+    
+    
+    
+    plot_main_conf_anal <- ggplot(values$BF_results_for_plotting_loop, aes(y = Bayes_factor_01, x = BF_type))+
+      geom_point()+
+      geom_rect(aes(xmin=-Inf, xmax=Inf, ymin=c(Inference_threshold_BF_high), ymax=c(Inf)), alpha = 0.2, fill=c("pink"))+
+      geom_rect(aes(xmin=-Inf, xmax=Inf, ymin=c(Inference_threshold_BF_low), ymax=c(Inference_threshold_BF_high)), alpha = 0.2, fill=c("grey80"))+
+      geom_rect(aes(xmin=-Inf, xmax=Inf, ymin=c(0), ymax=c(Inference_threshold_BF_low)), alpha = 0.2, fill=c("lightgreen"))+
+      geom_point(size = 3.5, shape = 21, fill = "white")+
+      scale_y_log10(limits = c(0.005,200), breaks=c(0.01, Inference_threshold_BF_low, 0.1, 0.33, 0, 3, 10, Inference_threshold_BF_high, 100))+
+      geom_hline(yintercept = c(Inference_threshold_BF_low, Inference_threshold_BF_high), linetype = "dashed")+
+      geom_text(aes(x=0.5, y=c(100, 1, 0.01), label=c("Supports M0", "Inconclusive", "Supports M1"), angle = 270))
+    
+    print(plot_main_conf_anal)
+  })
   
   
   
