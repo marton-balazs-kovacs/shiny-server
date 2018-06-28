@@ -751,8 +751,7 @@ shinyServer(function(input, output, session){
   
   
   observe({
-    updateSliderInput(session, "loop_slider", value = nrow(values$data_BF), max = nrow(values$data_BF))
-    
+
     
       list_result_mainanalysis_loop = ConfirmatoryAnalysisFunction(data_BF = values$data_BF[1:(input$loop_slider),],
                                                                    total_N = input$loop_slider,
