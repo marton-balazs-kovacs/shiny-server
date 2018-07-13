@@ -31,10 +31,10 @@ refresh_time = 2000
 ######################################################################
 
 #set where data will be read from
-source_data = "test"
+source_data = "pilot"
 
-data_link_pilot = "https://raw.githubusercontent.com/gy0p4k/transparent-psi-results/master/results.csv"
-data_link_test = "https://raw.githubusercontent.com/gy0p4k/transparent-psi-results/master/test_results_from_2018-06-02T14%3A01%3A41.608Z.csv"
+data_link_pilot = "https://raw.githubusercontent.com/gy0p4k/transparent-psi-results/master/tpp_pilot_results_from_9-7-2018.csv"
+data_link_test = "https://raw.githubusercontent.com/gy0p4k/transparent-psi-results/master/tpp_test_results_from_13-7-2018.csv"
 
 data_link = if(source_data == "pilot"){
   data_link_pilot
@@ -397,7 +397,7 @@ shinyServer(function(input, output, session){
     lab_ID <- "lab_ELTE_01"
     
     if(source_data == "pilot"){
-      pilot_data <- pilot_data_pre[pilot_data_pre[,"session_type"] == "pilot" & pilot_data_pre[,"laboratory_ID_code"] == lab_ID, ]
+      pilot_data <- pilot_data_pre[(pilot_data_pre[,"session_type"] == "pilot" | pilot_data_pre[,"session_type"] == "production") & pilot_data_pre[,"laboratory_ID_code"] == lab_ID, ]
     } else if(source_data == "test"){
       pilot_data <- pilot_data_pre
     } else {
@@ -801,7 +801,7 @@ shinyServer(function(input, output, session){
   
   output$text_loop <- renderText({
     
-    paste("Bayes Factor results after ", values$loop_N, " participants", sep = "")
+    paste("Bayes Factor results after ", values$loop_N, " trials", sep = "")
     
   })
 
