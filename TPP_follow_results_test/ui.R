@@ -10,8 +10,8 @@ shinyUI(
       sidebarMenu(
         menuItem("Welcome", tabName = "tab_welcome"),
         menuItem("Results summary" , tabName = "res_summary"),
-        menuSubItem("Test_page", tabName = "test"),
         menuSubItem("Main Confirmatory Analysis", tabName = "conf_analysis"),
+        menuSubItem("Time machine", tabName = "test"),
         menuSubItem("Robustness Analysis", tabName = "robust_analysis"),
         menuSubItem("Exploratory analysis", tabName = "explor_analysis"),
         menuItem("Preprint", tabName = "rmarkdown_manuscript")
@@ -63,7 +63,11 @@ shinyUI(
         tabItem(tabName = "test",
                 
                 fluidRow(
-                  sliderInput("loop_slider", "Select trial number or press play", min=40, max=150, value=40, step = 10,
+                  p("Here you can see how the evidence evolved with the accumulation of data.")
+                ),
+                
+                fluidRow(
+                  sliderInput("loop_slider", "Select trial number (may take a few seconds to refresh chart)", min=40, max=150, value=40, step = 10,
                               animate = animationOptions(interval = refresh_time, loop = TRUE))
                 ),
                 
