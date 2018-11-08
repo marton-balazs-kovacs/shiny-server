@@ -572,7 +572,7 @@ shinyServer(function(input, output, session){
 
 
     
-    general_text_first_part = paste("The study stopped at ", values$total_N, " erotic trials gathered from a total of ",
+    general_text_first_part = paste("The following information reflects ", source_data, " study sessions. The study currently has ", values$total_N, " erotic trials gathered from a total of ",
                          values$sample_size_participants_atleast1erotictrial, " participants.", " There has been ", values$total_missing_trials, " (", round(values$total_missing_trials/values$total_N*100,2),"%) missing data points due to incomplete sessions.", 
                          " We observed a total of ", round(mean(values$sides_match_current), 4)*100, "% successful guesses within ",
                          values$total_N, " erotic trials (99.5% CI = ", values$proportion_995CI_current[1]*100, "%", ", ", values$proportion_995CI_current[2]*100, "%", 
@@ -599,7 +599,7 @@ shinyServer(function(input, output, session){
                   sep = "")}
     
     
-    robustness_text = if(values$Robust_current == "robust"){paste(" The results proved to be robust to different statistical approaches, increasing our confidence in our inference.")} else if(values$Robust_current == "not robust"){
+    robustness_text = if(values$Robust_current == "robust" & values$inference_BF_current != "Inconclusive"){paste(" The results proved to be robust to different statistical approaches, increasing our confidence in our inference.")} else if(values$Robust_current == "not robust"){
       paste(" However, the results did not prove to be robust to different statistical approaches.")}
     
     
