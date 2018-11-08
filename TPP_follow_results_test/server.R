@@ -22,24 +22,33 @@ library(emdist) # to calcluate earth mover's distance (EMD)
 #                                                                    #
 ######################################################################
 
-refresh_time = 2000
+refresh_time = 10000
 
 ######################################################################
 #                                                                    #
 #                             Source data                            #
 #                                                                    #
 ######################################################################
+# THE SOURCE DATA SECTION WILL BE EDITED to read live results data files from GitHub
+# This is necessary because there may be server resetarts over the course of the project 
+# which might break the live datafile to several segments.
 
 #set where data will be read from
 source_data = "pilot"
 
-data_link_pilot = "https://raw.githubusercontent.com/gy0p4k/transparent-psi-results/master/tpp_pilot_results_from_9-7-2018.csv"
-data_link_test = "https://raw.githubusercontent.com/gy0p4k/transparent-psi-results/master/tpp_test_results_from_13-7-2018.csv"
+# list of links containing each type of datasets
+# "https://raw.githubusercontent.com/gy0p4k/transparent-psi-results/master/tpp_pilot_results_from_13-9-2018.csv" only contains tests
 
-data_link = if(source_data == "pilot"){
+data_link_live = c("https://github.com/gy0p4k/transparent-psi-results/blob/master/tpp_liveresults_from_17-9-2018.csv")
+data_link_pilot = c("https://raw.githubusercontent.com/gy0p4k/transparent-psi-results/master/tpp_pilot_results_from_9-7-2018.csv", "https://raw.githubusercontent.com/gy0p4k/transparent-psi-results/master/tpp_pilot_results_from_21-7-2018.csv", "https://raw.githubusercontent.com/gy0p4k/transparent-psi-results/master/tpp_pilot_results_from_17-9-2018.csv")
+data_link_test = c("https://raw.githubusercontent.com/gy0p4k/transparent-psi-results/master/tpp_test_results_from_21-7-2018.csv", "https://raw.githubusercontent.com/gy0p4k/transparent-psi-results/master/tpp_test_results_from_7-9-2018.csv", "https://raw.githubusercontent.com/gy0p4k/transparent-psi-results/master/tpp_test_results_from_13-9-2018.csv", "https://raw.githubusercontent.com/gy0p4k/transparent-psi-results/master/tpp_test_results_from_17-9-2018.csv")
+
+data_link_list = if(source_data == "pilot"){
   data_link_pilot
 } else if(source_data == "test") {
   data_link_test
+} else if(source_data == "live"){
+  data_link_live
 } else {NA}
 
 
@@ -389,33 +398,38 @@ shinyServer(function(input, output, session){
     #                                                                    #
     ######################################################################
     
+    # create a single file from file segments on GitHub
+    target_data_pre_list = list(NA)
+    
     # get up to date date from github
-    pilot_data_pre <- read.csv(data_link)
+    for(i in 1:length(data_link_list)){
+      target_data_pre_list[[i]] = read.csv(data_link_list[i])
+    }
     
-    # only read pilot sessions
-    # pilot sessions are marked with session_type = "pilot" and they were all collected in the lab with the laboratory_ID_code = "lab_ELTE_01"
-    lab_ID <- "lab_ELTE_01"
+    #collapse data sheets from different urls into one data frame
+    target_data_pre <- do.call("rbind", target_data_pre_list)
     
-    if(source_data == "pilot"){
-      pilot_data <- pilot_data_pre[(pilot_data_pre[,"session_type"] == "pilot" | pilot_data_pre[,"session_type"] == "production") & pilot_data_pre[,"laboratory_ID_code"] == lab_ID, ]
-    } else if(source_data == "test"){
-      pilot_data <- pilot_data_pre
-    } else {
-        pilot_data <- NA
-        }
-    
+    # sessions conducted with the test accounts or without lab_IDs are excluded
+    lab_IDs_to_exclude <- c("", "18155ef201564afbb81f6a8b74aa9a033eac51ec6595510eca9606938ffaced3", "ece83ceb8611d1926746e5bb3597ed1e8cb5d336521331b31961d5c0348883cf")
+    target_data <- target_data_pre[!(target_data_pre[,"laboratory_ID_code"] %in% lab_IDs_to_exclude), ]
+
+
+    if(source_data == "pilot"){   
+      # these sessions were test sessions even though they were conducted with a valid experimenter ID and as pilot session type, so they are excluded
+      participant_IDs_to_exclude <- c("5e45139f-e642-4539-8958-6906c3f6b9c6", "2a8349db-4868-44b9-853f-9c7205d834d2")
+      target_data <- target_data[!(target_data[,"participant_ID"] %in% participant_IDs_to_exclude), ]
+    }
+
     
     # Number of participants tested in the pilot test
-    sample_size_participants_started_session = length(unique(pilot_data[, "participant_ID"]))
-    
-    
-    pilot_data[, "trial_number"] = as.numeric(pilot_data[, "trial_number"])
+    sample_size_participants_started_session = length(unique(target_data[, "participant_ID"]))
+    target_data[, "trial_number"] = as.numeric(target_data[, "trial_number"])
     
     #extract data from erotic trials 
-    data_BF = pilot_data[!is.na(pilot_data[, "trial_number"]) & pilot_data[, "reward_type"] == "erotic", ]
+    data_BF = target_data[!is.na(target_data[, "trial_number"]) & target_data[, "reward_type"] == "erotic", ]
     
     data_BF[,"participant_ID"] = droplevels(data_BF[,"participant_ID"])
-    
+
     #if the stopping rule was reached at the latest crucial test, than omit data collected after the latest crucial test
     if(values$data_collection_status_at_latest_crucial_test == "stopped"){
       data_BF = data_BF[1:values$latest_crucial_test_at,]
@@ -432,6 +446,8 @@ shinyServer(function(input, output, session){
     # number of missing trials (data points)
     data_BF_split_by_participants = split(data_BF, f = data_BF[,"participant_ID"])
     values$total_missing_trials = sum(sapply(data_BF_split_by_participants, function(x) trial_size_per_participant-nrow(x)))
+
+    
     
     # latest interim analysis point
     values$latest_crucial_test_at = if(min(when_to_check) < values$total_N){
@@ -442,6 +458,8 @@ shinyServer(function(input, output, session){
     values$next_crucial_test_at = if(max(when_to_check) > values$total_N){
       when_to_check[min(which(when_to_check > values$total_N))]
     } else {NA}
+    
+    
   })    
     
     
