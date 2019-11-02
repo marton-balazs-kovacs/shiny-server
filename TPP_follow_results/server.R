@@ -610,14 +610,13 @@ shinyServer(function(input, output, session){
     
     
     final_text = paste(general_text_first_part, general_text_second_half, robustness_text, stopping_text, sep = "")
-
-                    
-
+    
+    warning_text = paste(" Result not yet final!\nData presented on this page represent the current trend calculated from the data. The results should not be over-interpreted! Random variations may cause the data to cross the decision thresholds. Statistical decisions will only be drawn at the pre-specified stopping points. The next stopping point will be at reaching", when_to_check[(which.min(abs(when_to_check - values$total_N)) + 1)], " trials. ")
     
     
     ######################################################################
     #                                                                    #
-    #                         Exploratory analysis                       #
+    #                         Exploratory analysis                       #  
     #                                                                    #
     ######################################################################
     # The existence of individual differences between participants will be evaluated 
@@ -684,6 +683,7 @@ shinyServer(function(input, output, session){
     
     
     values$final_text = final_text
+    values$warning_text = warning_text
     values$emd = emd # this still needs to be integreted into the result visualization
     values$histogram_plot_data = histogram_plot_data
     
@@ -739,6 +739,12 @@ shinyServer(function(input, output, session){
   output$text_summary <- renderText({
      
     values$final_text
+    
+  })
+  
+  output$text_warning <- renderText({
+    
+    values$warning_text
     
   })
   

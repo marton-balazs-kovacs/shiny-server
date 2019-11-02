@@ -45,6 +45,9 @@ shinyUI(
                   h1("Summary of the results")
                 ),
                 fluidRow(
+                  span(textOutput("text_warning"), style="color:red")
+                ),
+                fluidRow(
                   textOutput("text_summary")
                 ),
                 fluidRow(
@@ -65,7 +68,7 @@ shinyUI(
                 fluidRow(
                   p("Here you can see how the evidence evolved with the accumulation of data.")
                 ),
-                
+  
                 fluidRow(
                   sliderInput("loop_slider", "Select trial number (may take a few seconds to refresh chart)", min=40, max=150, value=40, step = 10,
                               animate = animationOptions(interval = refresh_time, loop = TRUE))
@@ -78,12 +81,15 @@ shinyUI(
                 fluidRow(
                   box(plotOutput("plot1_loop"))
                 ),
+                
                 fluidRow(
                   textOutput("text_loop")
                 ),
+                
                 fluidRow(
                   p("To support any model, all three Bayes Factor values need to pass the threshold")
                 ),
+                
                 fluidRow(
                   textOutput("text_refresh_test")
                 )
@@ -94,6 +100,9 @@ shinyUI(
                 
                 fluidRow(
                   h1("Main Confirmatory Analysis results")
+                ),
+                fluidRow(
+                  span(textOutput("text_warning"), style="color:red")
                 ),
                 fluidRow(
                   box(plotOutput("plot1b"))
